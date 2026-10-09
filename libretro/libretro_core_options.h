@@ -753,6 +753,38 @@ struct retro_core_option_definition *option_defs_intl[RETRO_LANGUAGE_LAST] = {
  *   be as painless as possible for core devs)
  */
 
+/* Native RetroArch categories (core options v2).
+ * Keep the original option keys and values unchanged for save compatibility. */
+static struct retro_core_option_v2_category snes9x_option_categories[] = {
+   { "system",   "System",         "Console region and system behavior." },
+   { "video",    "Video",          "Display, graphics and rendering." },
+   { "audio",    "Audio",          "Audio output and sound channels." },
+   { "input",    "Input",          "Controllers, light guns and input behavior." },
+   { "hacks",    "Emulation",      "Performance and emulation adjustments." },
+   { NULL, NULL, NULL }
+};
+
+static const char *snes9x_option_category(const char *key)
+{
+   if (strstr(key, "lightgun") || strstr(key, "superscope") ||
+       strstr(key, "justifier") || strstr(key, "rifle") ||
+       strstr(key, "mouse") || strstr(key, "up_down"))
+      return "input";
+   if (strstr(key, "snd") || strstr(key, "audio") ||
+       strstr(key, "msu1") || strstr(key, "sound"))
+      return "audio";
+   if (strstr(key, "overclock") || strstr(key, "superfx") ||
+       strstr(key, "reduce_slowdown") || strstr(key, "cpu"))
+      return "hacks";
+   if (strstr(key, "aspect") || strstr(key, "overscan") ||
+       strstr(key, "gfx") || strstr(key, "layer") ||
+       strstr(key, "hires") || strstr(key, "blargg") ||
+       strstr(key, "crop") || strstr(key, "frameskip") ||
+       strstr(key, "mode7"))
+      return "video";
+   return "system";
+}
+
 static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
 {
    unsigned version = 0;
@@ -760,7 +792,31 @@ static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
    if (!environ_cb)
       return;
 
-   if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 1))
+   if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 2))
+   {
+      /* Populate v2 from the existing v1 definitions so all options, including
+       * NTSC (Lie to PAL), retain their exact keys, values and defaults. */
+      static struct retro_core_option_v2_definition defs_v2[
+         sizeof(option_defs_us) / sizeof(option_defs_us[0])];
+      struct retro_core_options_v2 options_v2;
+      size_t i, j;
+      memset(defs_v2, 0, sizeof(defs_v2));
+      for (i = 0; option_defs_us[i].key; i++)
+      {
+         defs_v2[i].key = option_defs_us[i].key;
+         defs_v2[i].desc = option_defs_us[i].desc;
+         defs_v2[i].info = option_defs_us[i].info;
+         defs_v2[i].category_key = snes9x_option_category(option_defs_us[i].key);
+         defs_v2[i].default_value = option_defs_us[i].default_value;
+         for (j = 0; j < RETRO_NUM_CORE_OPTION_VALUES_MAX &&
+                     option_defs_us[i].values[j].value; j++)
+            defs_v2[i].values[j] = option_defs_us[i].values[j];
+      }
+      options_v2.categories = snes9x_option_categories;
+      options_v2.definitions = defs_v2;
+      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2, &options_v2);
+   }
+   else if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 1))
    {
 #ifndef HAVE_NO_LANGEXTRA
       struct retro_core_options_intl core_options_intl;
