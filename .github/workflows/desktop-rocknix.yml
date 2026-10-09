@@ -14,7 +14,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y g++-mingw-w64-x86-64-posix
       - name: Build Windows x64 Libretro core
         run: |
-          make -C libretro -j2 platform=win LTO= CC=x86_64-w64-mingw32-gcc-posix CXX="x86_64-w64-mingw32-g++-posix -std=c++17"
+          make -C libretro -j2 platform=win LTO= CC=x86_64-w64-mingw32-gcc-posix CXX="x86_64-w64-mingw32-g++-posix -std=c++17" LDFLAGS=-static
           mkdir -p build/windows-x64
           cp libretro/snes9x_libretro.dll LICENSE filter/snes_ntsc-license.txt build/windows-x64/
           x86_64-w64-mingw32-objdump -p libretro/snes9x_libretro.dll > build/windows-x64/pe-report.txt
