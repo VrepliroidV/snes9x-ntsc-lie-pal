@@ -49,6 +49,19 @@ extern "C" {
  *   frontend language definition */
 
 struct retro_core_option_definition option_defs_us[] = {
+   {
+      "snes9x_mode7_hires", "Mode 7 Hi-Res", "Render Mode 7 at 2x or 4x horizontal resolution; H+V also doubles vertical resolution.",
+      { { "disabled", NULL }, { "2x", "2x" }, { "4x", "4x" }, { "2x_hv", "2x (H+V)" }, { "4x_hv", "4x (H+V)" }, { NULL, NULL } }, "disabled"
+   },
+   {
+      "snes9x_mode7_hires_bilinear", "Mode 7 Hi-Res Filtering", "Stable or smooth bilinear texture sampling for Mode 7.",
+      { { "disabled", NULL }, { "stable", "Stable" }, { "smooth", "Smooth" }, { NULL, NULL } }, "disabled"
+   },
+   {
+      "snes9x_msu1_enhanced_audio", "MSU-1 Enhanced Audio (Reload Content)", "Output MSU-1 content at its native 44.1 kHz. Ordinary games retain 32040 Hz.",
+      { { "enabled", NULL }, { "disabled", NULL }, { NULL, NULL } }, "enabled"
+   },
+
 
    /* These variable names and possible values constitute an ABI with ZMZ (ZSNES Libretro player).
     * Changing "Show layer 1" is fine, but don't change "layer_1"/etc or the possible values ("Yes|No").

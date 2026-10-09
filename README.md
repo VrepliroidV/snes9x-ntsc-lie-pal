@@ -9,6 +9,17 @@ com a ROM original **Donkey Kong Country 2 (Europe) (Rev 1)**: a primeira fase
 foi concluída e a segunda foi desbloqueada normalmente. A validação de outros
 jogos permanece em aberto.
 
+## Recursos adicionais da Beta 2
+
+- **Mode 7 Hi-Res:** 2x/4x horizontal e 2x/4x H+V, com filtros bilineares Stable/Smooth. A resolução horizontal é obtida por novas amostras da matriz de rotação. A vertical usa interpolação entre linhas; não é uma nova emulação sublinha. Mosaic mantém o efeito original. A saída 4x é reduzida para 512 pixels antes do filtro Blargg para respeitar o tamanho do buffer NTSC.
+- **MSU-1 Enhanced Audio:** saída 44100 Hz para conteúdo MSU-1, ativada por padrão e aplicada ao recarregar o conteúdo. Jogos comuns e a opção desativada continuam em 32040 Hz. Requer os arquivos MSU-1 da versão do jogo.
+- **SuperFX Timing:** seleção entre execução por ciclos e o orçamento legado por linha; funciona junto do controle de overclock. O padrão da base permanece `accurate`.
+- Categorias System, Video, Audio, Input e Emulation, com fallback para frontends antigos. Os controles de volume individual não foram adicionados.
+
+Os testes automatizados verificam resoluções e conteúdo de uma ROM Mode 7 original gerada, as três opções de filtragem, mudanças ao vivo e as frequências MSU-1. A regressão de região cobre 144 cargas, reset, save states e a leitura de STAT78. A qualidade e desempenho em jogos comerciais ainda precisam de teste no aparelho.
+
+Os builds adicionais são núcleos Libretro para **Windows x64** e **Linux ARM64 (alvo ROCKNIX/RG DS)**. Não são emuladores standalone. O build Linux depende da compatibilidade glibc do sistema de destino; o carregamento no RG DS precisa de validação no aparelho.
+
 ## Downloads
 
 As versões públicas e seus arquivos ficam em

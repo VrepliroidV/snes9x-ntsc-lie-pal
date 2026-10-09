@@ -53,7 +53,7 @@ bool8 S9xGraphicsInit (void)
 	S9xFixColourBrightness();
 	S9xBuildDirectColourMaps();
 
-	GFX.ScreenBuffer.resize(MAX_SNES_WIDTH * (MAX_SNES_HEIGHT + 64));
+	GFX.ScreenBuffer.resize(MAX_SNES_WIDTH_4X * (MAX_SNES_HEIGHT + 64));
 	GFX.Screen = &GFX.ScreenBuffer[GFX.RealPPL * 32];
 	GFX.ZERO = (uint16 *) malloc(sizeof(uint16) * 0x10000);
 	GFX.SubScreen  = (uint16 *) malloc(GFX.ScreenSize * sizeof(uint16));
@@ -117,16 +117,10 @@ void S9xGraphicsScreenResize (void)
 	IPPU.InterlaceOBJ = Memory.FillRAM[0x2133] & 2;
 	IPPU.PseudoHires = Memory.FillRAM[0x2133] & 8;
 
-	if (PPU.BGMode == 5 || PPU.BGMode == 6 || IPPU.PseudoHires)
-	{
-		IPPU.DoubleWidthPixels = TRUE;
-		IPPU.RenderedScreenWidth = SNES_WIDTH << 1;
-	}
-	else
-	{
-		IPPU.DoubleWidthPixels = FALSE;
-		IPPU.RenderedScreenWidth = SNES_WIDTH;
-	}
+	IPPU.QuadWidthPixels = PPU.BGMode == 7 && Settings.Mode7Hires == 4;
+	IPPU.DoubleWidthPixels = PPU.BGMode == 5 || PPU.BGMode == 6 || IPPU.PseudoHires || (PPU.BGMode == 7 && Settings.Mode7Hires);
+	IPPU.RenderedScreenWidth = SNES_WIDTH * (IPPU.QuadWidthPixels ? 4 : (IPPU.DoubleWidthPixels ? 2 : 1));
+	IPPU.M7VertStartY = PPU.BGMode == 7 && Settings.Mode7HiresVertical ? 0 : -1;
 
 	if (IPPU.Interlace)
 	{
@@ -198,6 +192,7 @@ void S9xEndScreenRefresh (void)
 	if (IPPU.RenderThisFrame)
 	{
 		FLUSH_REDRAW();
+		S9xMode7VertResample();
 
 		if (GFX.DoInterlace && S9xInterlaceField() == 0)
 		{
@@ -461,21 +456,25 @@ void S9xUpdateScreen (void)
 			PPU.RecomputeClipWindows = FALSE;
 		}
 
-		if (!IPPU.DoubleWidthPixels && (PPU.BGMode == 5 || PPU.BGMode == 6 || IPPU.PseudoHires))
-		{
-			// Have to back out of the regular speed hack
-			for (uint32 y = 0; y < GFX.StartY; y++)
-			{
-				uint16	*p = GFX.Screen + y * GFX.PPL + 255;
-				uint16	*q = GFX.Screen + y * GFX.PPL + 510;
-
-				for (int x = 255; x >= 0; x--, p--, q -= 2)
-					*q = *(q + 1) = *p;
-			}
-
-			IPPU.DoubleWidthPixels = TRUE;
-			IPPU.RenderedScreenWidth = 512;
-		}
+		int target_scale = (PPU.BGMode == 7 && Settings.Mode7Hires == 4) ? 4 :
+            ((PPU.BGMode == 5 || PPU.BGMode == 6 || IPPU.PseudoHires || (Settings.Mode7Hires && PPU.BGMode == 7)) ? 2 : 1);
+        int current_scale = IPPU.QuadWidthPixels ? 4 : (IPPU.DoubleWidthPixels ? 2 : 1);
+        if (target_scale > current_scale)
+        {
+            int repeat = target_scale / current_scale;
+            for (uint32 y = 0; y < GFX.StartY; y++)
+                for (int x = SNES_WIDTH * current_scale - 1; x >= 0; x--)
+                {
+                    uint16 pixel = GFX.Screen[y * GFX.PPL + x];
+                    for (int i = 0; i < repeat; i++)
+                        GFX.Screen[y * GFX.PPL + x * repeat + i] = pixel;
+                }
+            IPPU.DoubleWidthPixels = TRUE;
+            IPPU.QuadWidthPixels = target_scale == 4;
+            IPPU.RenderedScreenWidth = SNES_WIDTH * target_scale;
+        }
+        if (PPU.BGMode == 7 && Settings.Mode7HiresVertical && IPPU.M7VertStartY < 0)
+            IPPU.M7VertStartY = (int32)GFX.StartY;
 
 		if (!IPPU.DoubleHeightPixels && IPPU.Interlace && (PPU.BGMode == 5 || PPU.BGMode == 6))
 		{
@@ -759,7 +758,7 @@ static void DrawOBJS (int D)
 	void (*DrawTile) (uint32, uint32, uint32, uint32) = NULL;
 	void (*DrawClippedTile) (uint32, uint32, uint32, uint32, uint32, uint32) = NULL;
 
-	int	PixWidth = IPPU.DoubleWidthPixels ? 2 : 1;
+	int	PixWidth = IPPU.QuadWidthPixels ? 4 : (IPPU.DoubleWidthPixels ? 2 : 1);
 	BG.InterlaceLine = S9xInterlaceField() ? 8 : 0;
 	GFX.Z1 = 2;
 	int sprite_limit = (Settings.MaxSpriteTilesPerLine == 128) ? 128 : 32;
@@ -872,7 +871,7 @@ static void DrawBackground (int bg, uint8 Zh, uint8 Zl)
 	uint32	Lines;
 	int		OffsetMask  = (BG.TileSizeH == 16) ? 0x3ff : 0x1ff;
 	int		OffsetShift = (BG.TileSizeV == 16) ? 4 : 3;
-	int		PixWidth = IPPU.DoubleWidthPixels ? 2 : 1;
+	int		PixWidth = IPPU.QuadWidthPixels ? 4 : (IPPU.DoubleWidthPixels ? 2 : 1);
 	bool8	HiresInterlace = IPPU.Interlace && IPPU.DoubleWidthPixels;
 
 	void (*DrawTile) (uint32, uint32, uint32, uint32);
@@ -1089,7 +1088,7 @@ static void DrawBackgroundMosaic (int bg, uint8 Zh, uint8 Zl)
 	int	Lines;
 	int	OffsetMask  = (BG.TileSizeH == 16) ? 0x3ff : 0x1ff;
 	int	OffsetShift = (BG.TileSizeV == 16) ? 4 : 3;
-	int	PixWidth = IPPU.DoubleWidthPixels ? 2 : 1;
+	int	PixWidth = IPPU.QuadWidthPixels ? 4 : (IPPU.DoubleWidthPixels ? 2 : 1);
 	bool8	HiresInterlace = IPPU.Interlace && IPPU.DoubleWidthPixels;
 
 	void (*DrawPix) (uint32, uint32, uint32, uint32, uint32, uint32);
@@ -1269,7 +1268,7 @@ static void DrawBackgroundOffset (int bg, uint8 Zh, uint8 Zl, int VOffOff)
 	int	Offset2Mask  = (BG.OffsetSizeH == 16) ? 0x3ff : 0x1ff;
 	int	Offset2Shift = (BG.OffsetSizeV == 16) ? 4 : 3;
 	int	OffsetEnableMask = 0x2000 << bg;
-	int	PixWidth = IPPU.DoubleWidthPixels ? 2 : 1;
+	int	PixWidth = IPPU.QuadWidthPixels ? 4 : (IPPU.DoubleWidthPixels ? 2 : 1);
 	bool8	HiresInterlace = IPPU.Interlace && IPPU.DoubleWidthPixels;
 
 	void (*DrawClippedTile) (uint32, uint32, uint32, uint32, uint32, uint32);
@@ -1497,7 +1496,7 @@ static void DrawBackgroundOffsetMosaic (int bg, uint8 Zh, uint8 Zl, int VOffOff)
 	int	OffsetShift  = (BG.TileSizeV   == 16) ? 4 : 3;
 	int	Offset2Shift = (BG.OffsetSizeV == 16) ? 4 : 3;
 	int	OffsetEnableMask = 0x2000 << bg;
-	int	PixWidth = IPPU.DoubleWidthPixels ? 2 : 1;
+	int	PixWidth = IPPU.QuadWidthPixels ? 4 : (IPPU.DoubleWidthPixels ? 2 : 1);
 	bool8	HiresInterlace = IPPU.Interlace && IPPU.DoubleWidthPixels;
 
 	void (*DrawPix) (uint32, uint32, uint32, uint32, uint32, uint32);
@@ -2149,7 +2148,8 @@ void S9xDrawCrosshair (const char *crosshair, uint8 fgcolor, uint8 bgcolor, int1
 	x -= 7;
 	y -= 7;
 
-	if (IPPU.DoubleWidthPixels)  { cx = 2; x *= 2; W *= 2; }
+	if (IPPU.QuadWidthPixels) { cx = 4; x *= 4; W *= 4; }
+	else if (IPPU.DoubleWidthPixels)  { cx = 2; x *= 2; W *= 2; }
 	if (IPPU.DoubleHeightPixels) { rx = 2; y *= 2; H *= 2; }
 
 	fg = get_crosshair_color(fgcolor);

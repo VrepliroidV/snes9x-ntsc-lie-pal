@@ -61,6 +61,7 @@ char g_basename[1024];
 bool g_geometry_update = false;
 
 int hires_blend = 0;
+static bool msu1_enhanced_pref = true;
 bool randomize_memory = false;
 
 char retro_system_directory[4096];
@@ -307,6 +308,34 @@ static void update_variables(bool load_region = false)
 {
     char key[256];
     struct retro_variable var;
+
+    var.key = "snes9x_msu1_enhanced_audio";
+    var.value = NULL;
+    msu1_enhanced_pref = true;
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+        msu1_enhanced_pref = !strcmp(var.value, "enabled");
+
+    var.key = "snes9x_mode7_hires";
+    var.value = NULL;
+    int previous_scale = Settings.Mode7Hires;
+    int previous_vertical = Settings.Mode7HiresVertical;
+    Settings.Mode7Hires = Settings.Mode7HiresVertical = 0;
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+    {
+        if (!strcmp(var.value, "2x") || !strcmp(var.value, "2x_hv")) Settings.Mode7Hires = 2;
+        if (!strcmp(var.value, "4x") || !strcmp(var.value, "4x_hv")) Settings.Mode7Hires = 4;
+        Settings.Mode7HiresVertical = Settings.Mode7Hires && strstr(var.value, "_hv");
+    }
+    if (previous_scale != Settings.Mode7Hires || previous_vertical != Settings.Mode7HiresVertical)
+        g_geometry_update = true;
+    var.key = "snes9x_mode7_hires_bilinear";
+    var.value = NULL;
+    Settings.Mode7HiresBilinear = 0;
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+    {
+        if (!strcmp(var.value, "stable")) Settings.Mode7HiresBilinear = 1;
+        if (!strcmp(var.value, "smooth")) Settings.Mode7HiresBilinear = 2;
+    }
 
     var.key = "snes9x_hires_blend";
     var.value = NULL;
@@ -849,10 +878,10 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
 
     info->geometry.base_width = width;
     info->geometry.base_height = height;
-    info->geometry.max_width = MAX_SNES_WIDTH_NTSC;
+    info->geometry.max_width = MAX_SNES_WIDTH_4X;
     info->geometry.max_height = MAX_SNES_HEIGHT;
     info->geometry.aspect_ratio = get_aspect_ratio(width, height);
-    info->timing.sample_rate = 32040;
+    info->timing.sample_rate = Settings.SoundPlaybackRate;
     info->timing.fps = retro_get_region() == RETRO_REGION_NTSC ? 21477272.0 / 357366.0 : 21281370.0 / 425568.0;
 
     g_screen_gun_width = width;
@@ -1115,6 +1144,17 @@ static bool8 is_SufamiTurbo_Cart (const uint8 *data, uint32 size)
         return (FALSE);
 }
 
+static void msu1_update_playback_rate(void)
+{
+    int playback_rate = (Settings.MSU1 && msu1_enhanced_pref) ? 44100 : 32040;
+    if (Settings.SoundPlaybackRate != playback_rate)
+    {
+        Settings.SoundPlaybackRate = playback_rate;
+        S9xInitSound(32);
+    }
+}
+
+
 bool retro_load_game(const struct retro_game_info *game)
 {
     init_descriptors();
@@ -1174,6 +1214,8 @@ bool retro_load_game(const struct retro_game_info *game)
 
     if (!rom_loaded && log_cb)
         log_cb(RETRO_LOG_ERROR, "ROM loading failed...\n");
+
+    if (rom_loaded) msu1_update_playback_rate();
 
     Memory.ClearSRAM();
 
@@ -1309,6 +1351,7 @@ bool retro_load_game_special(unsigned game_type, const struct retro_game_info *i
         g_geometry_update = true;
     }
 
+    if (rom_loaded) msu1_update_playback_rate();
     return rom_loaded;
 }
 
@@ -2029,6 +2072,15 @@ bool8 S9xDeinitUpdate(int width, int height)
     }
 
 
+    if (blargg_filter && width == MAX_SNES_WIDTH_4X)
+    {
+        for (int y = 0; y < height; y++)
+        {
+            uint16 *row = GFX.Screen + y * GFX.RealPPL;
+            for (int x = 0; x < 512; x++) row[x] = row[x * 2];
+        }
+        width = 512;
+    }
     if (blargg_filter)
     {
         burst_phase = (burst_phase + 1) % 3;

@@ -247,6 +247,9 @@ struct SSettings
 	int32	InterpolationMethod;
 
 	bool8	Transparency;
+	int32 Mode7Hires;
+	int32 Mode7HiresVertical;
+	int32 Mode7HiresBilinear;
 	uint8	BG_Forced;
 	bool8	DisableGraphicWindows;
 	uint16  ForcedBackdrop;

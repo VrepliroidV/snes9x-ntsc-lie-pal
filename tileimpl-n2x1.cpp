@@ -12,12 +12,14 @@ namespace TileImpl {
 	template<class MATH, class BPSTART>
 	void Normal2x1Base<MATH, BPSTART>::Draw(int N, int M, uint32 Offset, uint32 OffsetInLine, uint8 Pix, uint8 Z1, uint8 Z2)
 	{
-		(void) OffsetInLine;
-		if (Z1 > GFX.DB[Offset + 2 * N] && (M))
-		{
-			GFX.S[Offset + 2 * N] = GFX.S[Offset + 2 * N + 1] = MATH::Calc(GFX.ScreenColors[Pix], GFX.SubScreen[Offset + 2 * N], GFX.SubZBuffer[Offset + 2 * N]);
-			GFX.DB[Offset + 2 * N] = GFX.DB[Offset + 2 * N + 1] = Z2;
-		}
+        (void) OffsetInLine;
+        int scale = IPPU.QuadWidthPixels ? 4 : 2;
+        uint32 pos = Offset + scale * N;
+        if (Z1 > GFX.DB[pos] && M)
+        {
+            uint16 color = MATH::Calc(GFX.ScreenColors[Pix], GFX.SubScreen[pos], GFX.SubZBuffer[pos]);
+            for (int i = 0; i < scale; i++) { GFX.S[pos+i] = color; GFX.DB[pos+i] = Z2; }
+        }
 	}
 
 

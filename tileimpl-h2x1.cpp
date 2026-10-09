@@ -12,15 +12,25 @@ namespace TileImpl {
 	template<class MATH, class BPSTART>
 	void HiresBase<MATH, BPSTART>::Draw(int N, int M, uint32 Offset, uint32 OffsetInLine, uint8 Pix, uint8 Z1, uint8 Z2)
 	{
-		if (Z1 > GFX.DB[Offset + 2 * N] && (M))
-		{
-			GFX.S[Offset + 2 * N + 1] = MATH::Calc(GFX.ScreenColors[Pix], GFX.SubScreen[Offset + 2 * N], GFX.SubZBuffer[Offset + 2 * N]);
-			if ((OffsetInLine + 2 * N ) != (SNES_WIDTH - 1) << 1)
-				GFX.S[Offset + 2 * N + 2] = MATH::Calc((GFX.ClipColors ? 0 : GFX.SubScreen[Offset + 2 * N + 2]), GFX.RealScreenColors[Pix], GFX.SubZBuffer[Offset + 2 * N]);
-			if ((OffsetInLine + 2 * N) == 0 || (OffsetInLine + 2 * N) == GFX.RealPPL)
-				GFX.S[Offset + 2 * N] = MATH::Calc((GFX.ClipColors ? 0 : GFX.SubScreen[Offset + 2 * N]), GFX.RealScreenColors[Pix], GFX.SubZBuffer[Offset + 2 * N]);
-			GFX.DB[Offset + 2 * N] = GFX.DB[Offset + 2 * N + 1] = Z2;
-		}
+        int repeat = IPPU.QuadWidthPixels ? 2 : 1;
+        uint32 pos = Offset + 2 * repeat * N;
+        uint32 in_line = OffsetInLine + 2 * repeat * N;
+        if (Z1 > GFX.DB[pos] && M)
+        {
+            uint16 main_color = MATH::Calc(GFX.ScreenColors[Pix],GFX.SubScreen[pos],GFX.SubZBuffer[pos]);
+            for (int i=0; i<repeat; i++) GFX.S[pos+repeat+i]=main_color;
+            if (in_line != (uint32)(SNES_WIDTH-1)*2*repeat)
+            {
+                uint16 next = MATH::Calc(GFX.ClipColors ? 0 : GFX.SubScreen[pos+2*repeat],GFX.RealScreenColors[Pix],GFX.SubZBuffer[pos]);
+                for (int i=0; i<repeat; i++) GFX.S[pos+2*repeat+i]=next;
+            }
+            if (in_line == 0 || in_line == GFX.RealPPL)
+            {
+                uint16 first = MATH::Calc(GFX.ClipColors ? 0 : GFX.SubScreen[pos],GFX.RealScreenColors[Pix],GFX.SubZBuffer[pos]);
+                for (int i=0; i<repeat; i++) GFX.S[pos+i]=first;
+            }
+            for (int i=0; i<2*repeat; i++) GFX.DB[pos+i]=Z2;
+        }
 	}
 
 

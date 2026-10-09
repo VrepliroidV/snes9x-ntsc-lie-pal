@@ -1,0 +1,46 @@
+name: Windows and ROCKNIX cores
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-x64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install MinGW
+        run: sudo apt-get update && sudo apt-get install -y g++-mingw-w64-x86-64-posix
+      - name: Build Windows x64 Libretro core
+        run: |
+          make -C libretro -j2 platform=win LTO= CC=x86_64-w64-mingw32-gcc-posix CXX=x86_64-w64-mingw32-g++-posix
+          mkdir -p build/windows-x64
+          cp libretro/snes9x_libretro.dll LICENSE filter/snes_ntsc-license.txt build/windows-x64/
+          x86_64-w64-mingw32-objdump -p libretro/snes9x_libretro.dll > build/windows-x64/pe-report.txt
+          cd build/windows-x64
+          sha256sum snes9x_libretro.dll > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snes9x-windows-x64-${{ github.sha }}
+          path: build/windows-x64/
+  rocknix-arm64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ARM64 compiler and emulator
+        run: sudo apt-get update && sudo apt-get install -y g++-aarch64-linux-gnu qemu-user
+      - name: Build and exercise ARM64 Libretro core
+        run: |
+          make -C libretro -j2 platform=unix LTO= CC=aarch64-linux-gnu-gcc CXX=aarch64-linux-gnu-g++
+          mkdir -p build/rocknix-arm64
+          cp libretro/snes9x_libretro.so LICENSE filter/snes_ntsc-license.txt build/rocknix-arm64/
+          aarch64-linux-gnu-g++ -std=c++11 -O2 -I. tests/features_test.cpp -ldl -o build/rocknix-arm64/features_test
+          qemu-aarch64 -L /usr/aarch64-linux-gnu build/rocknix-arm64/features_test "$PWD/build/rocknix-arm64/snes9x_libretro.so" > build/rocknix-arm64/features-test.log
+          aarch64-linux-gnu-readelf -h -d -V build/rocknix-arm64/snes9x_libretro.so > build/rocknix-arm64/elf-report.txt
+          cd build/rocknix-arm64
+          sha256sum snes9x_libretro.so > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snes9x-rocknix-arm64-${{ github.sha }}
+          path: build/rocknix-arm64/
