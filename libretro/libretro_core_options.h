@@ -829,7 +829,8 @@ static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
       }
       options_v2.categories = snes9x_option_categories;
       options_v2.definitions = defs_v2;
-      environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2, &options_v2);
+      if (environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2, &options_v2))
+         return; /* Do not overwrite v2 categories with v1 flat options. */
    }
 #endif
    if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 1))
