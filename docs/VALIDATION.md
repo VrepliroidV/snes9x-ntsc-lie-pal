@@ -1,8 +1,9 @@
 # Validação — Android ARM64
 
-Registro da validação realizada em 09/10/2026, em um ambiente Linux x86_64.
-Os resultados abaixo distinguem execução no host, inspeção do artefato Android
-e testes ainda pendentes no dispositivo.
+O registro inicial foi produzido em 09/10/2026, em um ambiente Linux x86_64.
+Este documento também registra a execução bem-sucedida do GitHub Actions e o
+teste no RetroArch Android relatado pelo usuário. Os resultados distinguem os
+testes no host, a inspeção estática do artefato Android e a execução no aparelho.
 
 ## Fonte e compilação
 
@@ -14,12 +15,16 @@ e testes ainda pendentes no dispositivo.
 - Compilação real com Android NDK r28c, `28.2.13676358`, `ndk-build`,
   `arm64-v8a`, Android API 21, configuração release e `c++_static`.
 - Compilação e vinculação concluídas. O link exige `--no-undefined`.
-  Consulte `build.log` e `build-diagnostics.json` no pacote para os diagnósticos
+  Consulte `build.log` e `build-diagnostics.json` no artefato de CI para os diagnósticos
   exatos; o commit usado e o estado da árvore estão em `build-metadata.txt`.
+- O build local inicial usou o commit
+  `827fb71c638b2c0361d973e89c714b10bcd6a9b8`. A execução do GitHub Actions
+  documentada abaixo usou `1cc6195d`. São compilações separadas; use os
+  metadados e `SHA256SUMS` do pacote baixado para identificar seu núcleo.
 
 ## Inspeção do núcleo Android
 
-O script `scripts/verify-android-core.py` confirmou no artefato produzido:
+O script `scripts/verify-android-core.py` confirmou no artefato local produzido:
 
 - ELF64 little-endian, máquina AArch64, tipo ET_DYN.
 - Nota Android indicando API 21 e NDK r28c.
@@ -33,10 +38,11 @@ O script `scripts/verify-android-core.py` confirmou no artefato produzido:
   das dependências declaradas no NDK. Não há importações fracas neste artefato.
 
 Isso reduz a chance de erros de arquitetura, símbolos ausentes e dependências
-não distribuídas. **Não prova `dlopen` no Android, o carregamento pelo RetroArch
-ou a execução de um jogo no aparelho.** O SHA256 e o tamanho exato do arquivo
-estão em `SHA256SUMS` e `elf-validation.json`, evitando fixar aqui um hash que
-mudaria após outra compilação.
+não distribuídas. **A inspeção estática, por si só, não prova o carregamento
+no Android ou a execução de um jogo.** O teste no RetroArch relatado pelo
+usuário está registrado separadamente abaixo. O SHA256 e o tamanho exato
+do arquivo estão em `SHA256SUMS` de cada lançamento e em `elf-validation.json`
+dos artefatos de CI.
 
 ## Testes funcionais executados no host
 
@@ -73,10 +79,10 @@ hardware completos pela ROM de diagnóstico.
 
 ## Teste opcional de carregamento no Android
 
-O pacote inclui `android-core-smoke`, um executável Android ARM64/API21
+O artefato do GitHub Actions inclui `android-core-smoke`, um executável Android ARM64/API21
 compilado com o mesmo NDK. Ele foi **compilado, mas não executado no ambiente
 de validação**. Com o aparelho conectado e a depuração USB autorizada, execute
-na pasta extraída do pacote:
+na pasta extraída do artefato de CI (o ZIP básico da Beta não inclui esse executável):
 
 ```sh
 adb push snes9x_libretro_android.so /data/local/tmp/
@@ -91,15 +97,36 @@ API Libretro e consulta as informações do núcleo. Se passar, imprime
 Ele não inicializa a emulação nem carrega ROMs. Um resultado positivo ainda
 precisa ser seguido pelo teste dentro do RetroArch.
 
-## Verificação pendente no RetroArch Android
+## Teste relatado no RetroArch Android
+
+O usuário informou ter testado o núcleo produzido pelo GitHub Actions no
+RetroArch Android e confirmado que a opção **NTSC (Lie to PAL)** aparece e
+funciona. Com a ROM original **Donkey Kong Country 2 (Europe) (Rev 1)**,
+concluiu a primeira fase e desbloqueou a
+segunda.
+
+Esse relato demonstra carregamento do núcleo, acesso à nova opção e progresso
+no jogo nesse cenário. O teste não foi reproduzido independentemente neste
+ambiente e não garante compatibilidade com todos os jogos PAL. Não
+foram informados modelo do aparelho, versão do Android, versão do RetroArch,
+FPS medidos ou resultados específicos de áudio, estados salvos e desempenho
+sustentado. A temporização NTSC foi verificada pelos testes automáticos no host;
+não há uma medição de FPS do aparelho registrada aqui.
+
+O executável `android-core-smoke` continua **compilado, mas sem execução
+standalone registrada**. O teste do núcleo dentro do RetroArch não deve ser
+confundido com uma execução desse diagnóstico separado.
+
+## Verificações complementares no dispositivo
 
 1. Instale o núcleo conforme o README e confirme que o RetroArch é aarch64.
    Registre Android, modelo do aparelho, versão do RetroArch, commit e SHA256.
-2. Use a ROM original europeia de Donkey Kong Country 2 (Europe Rev 1), sem
-   patches, iniciando sem estado salvo. Este jogo **não foi executado aqui**.
+2. Para repetir o teste relatado, use a ROM original europeia de Donkey Kong
+   Country 2 (Europe Rev 1), sem patches, iniciando sem estado salvo. Continue
+   a partir da segunda fase para ampliar a cobertura de jogo.
 3. Escolha `NTSC (Lie to PAL)`, salve as opções e recarregue núcleo/conteúdo.
-   Verifique se passa pela checagem de região, inicia e joga com aproximadamente
-   60,10 FPS. Observe áudio, sincronização, estabilidade e desempenho sustentado.
+   Meça o FPS esperado de aproximadamente 60,10 Hz e observe áudio,
+   sincronização, estabilidade e desempenho sustentado.
 4. Compare Auto e PAL (~50,01 FPS), NTSC e o novo modo, sempre recarregando.
    Confirme também um jogo NTSC nos modos Auto e NTSC.
 5. Faça reset e teste salvar/carregar estado no mesmo modo. Não reutilize um
@@ -108,20 +135,43 @@ precisa ser seguido pelo teste dentro do RetroArch.
    aparelho com páginas de 16 KB; o alinhamento passou na inspeção estática,
    mas esse aparelho não foi testado.
 
-Os testes prévios do usuário no Beetle Supafaust e em uma edição binária
-experimental motivaram a implementação. Eles não são contabilizados como
-validação deste núcleo compilado.
+Os testes prévios no Beetle Supafaust e em uma edição binária experimental
+motivaram a implementação. Eles são distintos do teste posterior do usuário
+com o núcleo compilado por este projeto, registrado acima.
 
 ## GitHub Actions e plataformas futuras
 
-O workflow está preparado para compilar, validar e publicar artifacts dos
-pushes/PRs. A sintaxe foi validada com `actionlint` 1.7.12; os scripts passaram
-em `bash -n` e na compilação do Python. Na sessão de validação, `git push`
-retornou HTTP 403 e a API de criação
-de branch retornou `Resource not accessible by integration`. A branch está
-criada localmente; **nenhuma execução desse workflow nem PR remoto foi validado**
-enquanto o acesso de gravação permanecer indisponível.
+O workflow compilou e validou o núcleo na execução
+[`37941390187`](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/actions/runs/37941390187),
+com fonte no commit `1cc6195d`. Os jobs `android-arm64` e `region-regression`
+terminaram com **success**. O primeiro produziu o núcleo Android e os relatórios
+de validação; o segundo executou os 72 cenários e 144 carregamentos no host.
+Os artifacts dessa execução têm retenção de 30 dias. Para identificar o binário
+distribuído, consulte os metadados e o manifesto `SHA256SUMS` do pacote/release.
 
-O build Android local e os testes acima foram realmente executados, apesar desse
-bloqueio de publicação. Windows x64 e Linux ARM64/Rocknix permanecem fora do
-escopo validado nesta etapa.
+## Proveniência da Beta 1 preparada
+
+O artefato Android aprovado foi baixado e seu ZIP conferido contra o digest
+registrado pelo GitHub. O manifesto interno `SHA256SUMS` também passou para
+o núcleo e para o diagnóstico de carregamento. Os dados são:
+
+| Campo | Valor |
+| --- | --- |
+| Execução | `37941390187` |
+| Artifact Android | `11621278803` |
+| Fonte compilada | `1cc6195dc4a2449679ec7d47994748301a5d5ee6` |
+| SHA256 do ZIP original de CI | `a64765706355d8d0b57b89f7b4b55bc4e30c3cd972d88fe3ba456a7399060eaf` |
+| SHA256 de `snes9x_libretro_android.so` | `151093f5c13e4743f7ae52646a0faad2c4d04ab3c41d7f72a1d667e687bb5d44` |
+| Diagnósticos do build de CI | Zero avisos e zero erros |
+
+O binário da Beta é uma cópia desse `.so`. O binário local anterior, compilado
+de `827fb71c`, tem outro hash e não é usado como substituto. Os ajustes de
+documentação do lançamento não alteram a implementação. A publicação da tag
+e do pre-release depende da revisão e confirmação do responsável pelo projeto.
+
+O registro local anterior continua válido como histórico separado. A sintaxe
+do workflow foi validada com `actionlint` 1.7.12; os scripts passaram em
+`bash -n` e na compilação do Python. As falhas de acesso de gravação daquela
+sessão não representam o resultado da execução do GitHub Actions acima.
+
+Windows x64 e Linux ARM64/Rocknix permanecem fora do escopo validado nesta etapa.
