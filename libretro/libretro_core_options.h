@@ -753,6 +753,7 @@ struct retro_core_option_definition *option_defs_intl[RETRO_LANGUAGE_LAST] = {
  *   be as painless as possible for core devs)
  */
 
+#ifdef RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2
 /* Native RetroArch categories (core options v2).
  * Keep the original option keys and values unchanged for save compatibility. */
 static struct retro_core_option_v2_category snes9x_option_categories[] = {
@@ -785,6 +786,8 @@ static const char *snes9x_option_category(const char *key)
    return "system";
 }
 
+#endif /* RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2 */
+
 static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
 {
    unsigned version = 0;
@@ -792,6 +795,7 @@ static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
    if (!environ_cb)
       return;
 
+ #ifdef RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2
    if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 2))
    {
       /* Populate v2 from the existing v1 definitions so all options, including
@@ -816,7 +820,8 @@ static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
       options_v2.definitions = defs_v2;
       environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2, &options_v2);
    }
-   else if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 1))
+#endif
+   if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 1))
    {
 #ifndef HAVE_NO_LANGEXTRA
       struct retro_core_options_intl core_options_intl;
