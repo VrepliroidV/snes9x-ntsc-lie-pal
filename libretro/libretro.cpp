@@ -320,6 +320,13 @@ static void update_variables(bool load_region = false)
             hires_blend = 2;
     }
 
+    /* Select between cycle-accurate and legacy per-scanline GSU timing. */
+    var.key = "snes9x_superfx_timing";
+    var.value = NULL;
+    Settings.DisableGSUCycleMode = false;
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+        Settings.DisableGSUCycleMode = !strcmp(var.value, "legacy");
+
     var.key = "snes9x_overclock_superfx";
     var.value = NULL;
 
