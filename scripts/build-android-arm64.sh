@@ -36,6 +36,10 @@ cd -- "$repo_dir"
 
 core_name=snes9x_libretro_android.so
 cp -- "$output_dir/libs/arm64-v8a/libretro.so" "$output_dir/$core_name"
+cp -- "$repo_dir/LICENSE" "$output_dir/LICENSE"
+cp -- "$repo_dir/filter/snes_ntsc-license.txt" "$output_dir/snes_ntsc-license.txt"
+cp -- "$ndk_dir/NOTICE" "$output_dir/NDK-NOTICE.txt"
+cp -- "$ndk_dir/NOTICE.toolchain" "$output_dir/NDK-NOTICE.toolchain.txt"
 llvm_dir="$ndk_dir/toolchains/llvm/prebuilt/linux-x86_64"
 readelf_path="$llvm_dir/bin/llvm-readelf"
 if [[ ! -x "$readelf_path" ]]; then

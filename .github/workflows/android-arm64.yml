@@ -15,7 +15,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Test Libretro options, timing and STAT78 using synthetic ROMs
-        run: bash ci/test-region.sh
+        shell: bash
+        run: |
+          mkdir -p build
+          bash ci/test-region.sh 2>&1 | tee build/region-tests.log
+      - name: Upload region regression log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: region-regression-${{ github.sha }}
+          path: build/region-tests.log
+          if-no-files-found: ignore
+          retention-days: 30
 
   android-arm64:
     runs-on: ubuntu-24.04
@@ -43,6 +54,10 @@ jobs:
             build/android-arm64/build-metadata.txt
             build/android-arm64/build-diagnostics.json
             build/android-arm64/build.log
+            build/android-arm64/LICENSE
+            build/android-arm64/snes_ntsc-license.txt
+            build/android-arm64/NDK-NOTICE.txt
+            build/android-arm64/NDK-NOTICE.toolchain.txt
           if-no-files-found: error
           retention-days: 30
       - name: Preserve build log on failure
