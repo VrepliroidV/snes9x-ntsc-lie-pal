@@ -45,6 +45,22 @@ static std::vector<uint8_t> mode7_rom()
     write(0x2100,15);emit({0x80,0xfe});
     return rom;
 }
+static std::vector<uint8_t> superfx_rom()
+{
+    auto rom=diagnostic_rom(false);rom[0x7fd6]=0x13;size_t pc=0;
+    auto emit=[&](std::initializer_list<uint8_t> bytes){for(auto b:bytes)rom[pc++]=b;};
+    auto write=[&](unsigned reg,unsigned val){emit({0xa9,(uint8_t)val,0x8d,(uint8_t)reg,(uint8_t)(reg>>8)});};
+    emit({0x78,0xd8});write(0x2100,0x80);write(0x303a,0x18);write(0x3034,0x40);
+    write(0x3039,1);write(0x301e,0);write(0x301f,0x10);
+    // Read the running GSU accumulator through its CPU-visible register space.
+    size_t loop=pc;emit({0xad,0x00,0x30,0x85,0x20,0xad,0x01,0x30,0x85,0x21,0x4c,(uint8_t)loop,(uint8_t)(0x80+(loop>>8))});
+    rom[0x1000]=0xd0;rom[0x1001]=0x05;rom[0x1002]=0xfd;rom[0x1003]=0x01; // INC R0; BRA; NOP delay slot.
+    return rom;
+}
+static unsigned gsu_counter(Core& core)
+{
+    auto* w=static_cast<uint8_t*>(core.retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));return w[0x20]|(unsigned(w[0x21])<<8);
+}
 int main(int argc,char**argv)
 {
     if(argc!=2)return 2;
@@ -82,6 +98,20 @@ int main(int argc,char**argv)
         }
         std::remove("feature-msu.msu");game.path="feature-mode7.sfc";current.defaults["snes9x_msu1_enhanced_audio"]="enabled";
         require(core.retro_load_game(&game),"Ordinary ROM reload");retro_system_av_info av={};core.retro_get_system_av_info(&av);require(av.timing.sample_rate==32040,"MSU rate leaked to ordinary content");core.retro_unload_game();
+        const auto fx=superfx_rom();retro_game_info fx_game={"feature-superfx.sfc",fx.data(),fx.size(),nullptr};
+        unsigned counts[2]={};int index=0;
+        for(const char*timing:{"accurate","legacy"})
+        {
+            current.defaults["snes9x_superfx_timing"]=timing;
+            require(core.retro_load_game(&fx_game),"GSU load");for(int i=0;i<3;i++)core.retro_run();
+            unsigned start=gsu_counter(core);core.retro_run();counts[index++]=(gsu_counter(core)-start)&65535;
+            require(counts[index-1]!=0,"GSU program did not execute");
+            std::printf("PASS SuperFX timing=%s accumulator delta=%u\n",timing,counts[index-1]);core.retro_unload_game();
+        }
+        require(counts[0]!=counts[1],"GSU models have identical execution budgets");
+        current.defaults["snes9x_superfx_timing"]="accurate";require(core.retro_load_game(&fx_game),"GSU live load");for(int i=0;i<3;i++)core.retro_run();
+        current.defaults["snes9x_superfx_timing"]="legacy";current.updated=true;core.retro_run();
+        unsigned before=gsu_counter(core);core.retro_run();require(((gsu_counter(core)-before)&65535)==counts[1],"Live GSU timing differs from legacy after reload");core.retro_unload_game();
         std::puts("PASS features: native/HD rendering, live changes, MSU rates and categories");return 0;
     }catch(const std::exception& e){std::fprintf(stderr,"FAIL: %s\n",e.what());std::remove("feature-msu.msu");return 1;}
 }

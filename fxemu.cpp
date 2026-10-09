@@ -148,6 +148,9 @@ void S9xSuperFXExec (void)
 	{
         int	cs = Memory.FillRAM[0x3000 + GSU_CLSR] & 1;
 
+        // Keep the instruction runner and its caller on the same timing model.
+        GSU.bCycleMode = Settings.DisableGSUCycleMode ? 0 : 1;
+
 		if (!Settings.DisableGSUCycleMode)
 		{
 			// Real cycle costs: the GSU runs at the master clock (21.4MHz,
