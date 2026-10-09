@@ -765,25 +765,36 @@ static struct retro_core_option_v2_category snes9x_option_categories[] = {
    { NULL, NULL, NULL }
 };
 
+/* Explicit mapping avoids accidentally moving settings when keys are renamed.
+ * Audio channel toggles and volume sliders must remain distinct controls. */
 static const char *snes9x_option_category(const char *key)
 {
-   if (strstr(key, "lightgun") || strstr(key, "superscope") ||
-       strstr(key, "justifier") || strstr(key, "rifle") ||
-       strstr(key, "mouse") || strstr(key, "up_down"))
+   if (!strcmp(key, "snes9x_region") ||
+       !strcmp(key, "snes9x_show_advanced_av_settings") ||
+       !strcmp(key, "snes9x_show_lightgun_settings"))
+      return "system";
+
+   if (!strcmp(key, "snes9x_up_down_allowed") ||
+       !strcmp(key, "snes9x_lightgun_mode") ||
+       !strncmp(key, "snes9x_superscope_", 17) ||
+       !strncmp(key, "snes9x_justifier", 15) ||
+       !strncmp(key, "snes9x_rifle_", 13))
       return "input";
-   if (strstr(key, "snd") || strstr(key, "audio") ||
-       strstr(key, "msu1") || strstr(key, "sound"))
+
+   if (!strcmp(key, "snes9x_audio_interpolation") ||
+       !strcmp(key, "snes9x_echo_buffer_hack") ||
+       !strncmp(key, "snes9x_sndchan_", 14) ||
+       !strncmp(key, "snes9x_msu1_", 12))
       return "audio";
-   if (strstr(key, "overclock") || strstr(key, "superfx") ||
-       strstr(key, "reduce_slowdown") || strstr(key, "cpu"))
+
+   if (!strcmp(key, "snes9x_overclock_superfx") ||
+       !strcmp(key, "snes9x_overclock_cycles") ||
+       !strcmp(key, "snes9x_randomize_memory") ||
+       !strcmp(key, "snes9x_block_invalid_vram_access") ||
+       !strcmp(key, "snes9x_superfx_timing"))
       return "hacks";
-   if (strstr(key, "aspect") || strstr(key, "overscan") ||
-       strstr(key, "gfx") || strstr(key, "layer") ||
-       strstr(key, "hires") || strstr(key, "blargg") ||
-       strstr(key, "crop") || strstr(key, "frameskip") ||
-       strstr(key, "mode7"))
-      return "video";
-   return "system";
+
+   return "video";
 }
 
 #endif /* RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2 */
