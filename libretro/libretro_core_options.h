@@ -158,6 +158,17 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled"
    },
    {
+      "snes9x_superfx_timing",
+      "SuperFX Timing",
+      "Cycle-accurate GSU execution or legacy per-scanline timing. Cycle-accurate is recommended.",
+      {
+         { "accurate", "Cycle Accurate" },
+         { "legacy", "Legacy" },
+         { NULL, NULL },
+      },
+      "accurate"
+   },
+   {
       "snes9x_overclock_superfx",
       "SuperFX Overclocking",
       "SuperFX coprocessor frequency multiplier. Can improve frame rate or cause timing errors. Values under 100% can improve game performance on slow devices.",
