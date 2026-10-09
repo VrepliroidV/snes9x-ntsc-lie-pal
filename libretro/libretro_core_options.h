@@ -57,11 +57,12 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "snes9x_region",
       "Console Region (Reload Core)",
-      "Specify which region the system is from. 'PAL' is 50hz, 'NTSC' is 60hz. Games will run faster or slower than normal if the incorrect region is selected.",
+      "Specify which region the system is from. 'PAL' is 50hz, 'NTSC' is 60hz. 'NTSC (Lie to PAL)' uses NTSC timing but reports PAL to the game via STAT78 ($213F) bit 4. Reload the core after changing this option. Games will run faster or slower than normal if the incorrect region is selected.",
       {
          { "auto", "Auto" },
          { "ntsc", "NTSC" },
          { "pal",  "PAL" },
+         { "ntsc_lie_pal", "NTSC (Lie to PAL)" },
          { NULL, NULL},
       },
       "auto"

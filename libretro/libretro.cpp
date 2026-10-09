@@ -303,7 +303,7 @@ void update_geometry(void)
     g_geometry_update = false;
 }
 
-static void update_variables(void)
+static void update_variables(bool load_region = false)
 {
     char key[256];
     struct retro_variable var;
@@ -475,6 +475,11 @@ static void update_variables(void)
 
     var.key = "snes9x_region";
 
+    // Like timing, the reported region is applied when loading content.
+    // Unrelated live option updates must not partially switch console region.
+    if (load_region)
+        Settings.NTSCLiePAL = false;
+
     if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
     {
         if (!strcmp(var.value, "auto"))
@@ -491,6 +496,13 @@ static void update_variables(void)
         {
             Settings.ForceNTSC = false;
             Settings.ForcePAL = true;
+        }
+        else if (!strcmp(var.value, "ntsc_lie_pal"))
+        {
+            Settings.ForceNTSC = true;
+            Settings.ForcePAL = false;
+            if (load_region)
+                Settings.NTSCLiePAL = true;
         }
     }
 
@@ -1100,7 +1112,7 @@ bool retro_load_game(const struct retro_game_info *game)
 {
     init_descriptors();
 
-    update_variables();
+    update_variables(true);
 
     if(game->data == NULL && game->size == 0 && game->path != NULL)
         rom_loaded = Memory.LoadROM(game->path);
@@ -1202,7 +1214,7 @@ bool retro_load_game_special(unsigned game_type, const struct retro_game_info *i
     init_descriptors();
     rom_loaded = false;
 
-    update_variables();
+    update_variables(true);
     switch (game_type)
     {
         case RETRO_GAME_TYPE_BSX:

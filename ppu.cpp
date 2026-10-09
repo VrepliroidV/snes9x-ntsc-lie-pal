@@ -1187,7 +1187,8 @@ uint8 S9xGetPPU (uint16 Address)
 			case 0x213f: // STAT78
 				S9xTryGunLatch(false);
 				PPU.VBeamFlip = PPU.HBeamFlip = 0;
-				byte = (PPU.OpenBus2 & 0x20) | (Memory.FillRAM[0x213f] & 0xc0) | (Settings.PAL ? 0x10 : 0) | Model->_5C78;
+				// STAT78's region bit may differ from the region used for timing.
+				byte = (PPU.OpenBus2 & 0x20) | (Memory.FillRAM[0x213f] & 0xc0) | ((Settings.PAL || Settings.NTSCLiePAL) ? 0x10 : 0) | Model->_5C78;
 				Memory.FillRAM[0x213f] &= ~0x40;
 				return (PPU.OpenBus2 = byte);
 

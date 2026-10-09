@@ -81,11 +81,12 @@ struct retro_core_option_definition option_defs_tr[] = {
       {
       "snes9x_region",
       "Konsol Bölgesi (Core Yenilenir)",
-      "Sistemin hangi bölgeden olduğunu belirtir.. 'PAL' 50hz'dir, 'NTSC' ise 60hz. Yanlış bölge seçiliyse, oyunlar normalden daha hızlı veya daha yavaş çalışacaktır.",
+      "Sistemin hangi bölgeden olduğunu belirtir.. 'PAL' 50hz'dir, 'NTSC' ise 60hz. 'NTSC (Lie to PAL)', NTSC zamanlamasını kullanır ancak STAT78 ($213F) bit 4 üzerinden oyuna PAL bildirir. Bu seçeneği değiştirdikten sonra çekirdeği yeniden yükleyin. Yanlış bölge seçiliyse, oyunlar normalden daha hızlı veya daha yavaş çalışacaktır.",
       {
          { "auto", "Otomatik" },
          { "ntsc", "NTSC" },
          { "pal",  "PAL" },
+         { "ntsc_lie_pal", "NTSC (Lie to PAL)" },
          { NULL, NULL},
       },
       "auto"
