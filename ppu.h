@@ -45,6 +45,8 @@ struct InternalPPU
 	bool8	InterlaceOBJ;
 	bool8	PseudoHires;
 	bool8	DoubleWidthPixels;
+	bool8 QuadWidthPixels;
+	int32 M7VertStartY;
 	bool8	DoubleHeightPixels;
 	int		CurrentLine;
 	int		PreviousLine;
@@ -237,6 +239,7 @@ extern SnesModel	M2SNES;
 #define MAX_5A22_VERSION	0x02
 
 void S9xUpdateScreen (void);
+void S9xMode7VertResample (void);
 static inline void FLUSH_REDRAW (void)
 {
 	if (IPPU.PreviousLine != IPPU.CurrentLine)

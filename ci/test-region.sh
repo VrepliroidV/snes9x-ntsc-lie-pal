@@ -19,3 +19,7 @@ make -C "$test_root/source/libretro" -j"${JOBS:-2}" LTO= >"$test_root/build.log"
 "${CXX:-c++}" -std=c++11 -O2 -Wall -Wextra -Werror -I"$test_root/source" \
     "$test_root/source/tests/region_test.cpp" -ldl -o "$test_root/region_test"
 "$test_root/region_test" "$test_root/source/libretro/snes9x_libretro.so"
+
+"${CXX:-c++}" -std=c++11 -O2 -Wall -Wextra -Werror -I"$test_root/source" \
+    "$test_root/source/tests/features_test.cpp" -ldl -o "$test_root/features_test"
+(cd "$test_root" && "$test_root/features_test" "$test_root/source/libretro/snes9x_libretro.so")

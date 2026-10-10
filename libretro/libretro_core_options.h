@@ -49,6 +49,19 @@ extern "C" {
  *   frontend language definition */
 
 struct retro_core_option_definition option_defs_us[] = {
+   {
+      "snes9x_mode7_hires", "Mode 7 Hi-Res", "Render Mode 7 at 2x or 4x horizontal resolution; H+V also doubles vertical resolution.",
+      { { "disabled", NULL }, { "2x", "2x" }, { "4x", "4x" }, { "2x_hv", "2x (H+V)" }, { "4x_hv", "4x (H+V)" }, { NULL, NULL } }, "disabled"
+   },
+   {
+      "snes9x_mode7_hires_bilinear", "Mode 7 Hi-Res Filtering", "Stable or smooth bilinear texture sampling for Mode 7.",
+      { { "disabled", NULL }, { "stable", "Stable" }, { "smooth", "Smooth" }, { NULL, NULL } }, "disabled"
+   },
+   {
+      "snes9x_msu1_enhanced_audio", "MSU-1 Enhanced Audio (Reload Content)", "Output MSU-1 content at its native 44.1 kHz. Ordinary games retain 32040 Hz.",
+      { { "enabled", NULL }, { "disabled", NULL }, { NULL, NULL } }, "enabled"
+   },
+
 
    /* These variable names and possible values constitute an ABI with ZMZ (ZSNES Libretro player).
     * Changing "Show layer 1" is fine, but don't change "layer_1"/etc or the possible values ("Yes|No").
@@ -156,6 +169,17 @@ struct retro_core_option_definition option_defs_us[] = {
          { NULL, NULL },
       },
       "disabled"
+   },
+   {
+      "snes9x_superfx_timing",
+      "SuperFX Timing",
+      "Cycle-accurate GSU execution or legacy per-scanline timing. Cycle-accurate is recommended.",
+      {
+         { "accurate", "Cycle Accurate" },
+         { "legacy", "Legacy" },
+         { NULL, NULL },
+      },
+      "accurate"
    },
    {
       "snes9x_overclock_superfx",
@@ -753,6 +777,52 @@ struct retro_core_option_definition *option_defs_intl[RETRO_LANGUAGE_LAST] = {
  *   be as painless as possible for core devs)
  */
 
+#ifdef RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2
+/* Native RetroArch categories (core options v2).
+ * Keep the original option keys and values unchanged for save compatibility. */
+static struct retro_core_option_v2_category snes9x_option_categories[] = {
+   { "system",   "System",         "Console region and system behavior." },
+   { "video",    "Video",          "Display, graphics and rendering." },
+   { "audio",    "Audio",          "Audio output and sound channels." },
+   { "input",    "Input",          "Controllers, light guns and input behavior." },
+   { "hacks",    "Emulation",      "Performance and emulation adjustments." },
+   { NULL, NULL, NULL }
+};
+
+/* Explicit mapping avoids accidentally moving settings when keys are renamed.
+ * Audio channel toggles and volume sliders must remain distinct controls. */
+static const char *snes9x_option_category(const char *key)
+{
+   if (!strcmp(key, "snes9x_region") ||
+       !strcmp(key, "snes9x_show_advanced_av_settings") ||
+       !strcmp(key, "snes9x_show_lightgun_settings"))
+      return "system";
+
+   if (!strcmp(key, "snes9x_up_down_allowed") ||
+       !strcmp(key, "snes9x_lightgun_mode") ||
+       !strncmp(key, "snes9x_superscope_", 17) ||
+       !strncmp(key, "snes9x_justifier", 15) ||
+       !strncmp(key, "snes9x_rifle_", 13))
+      return "input";
+
+   if (!strcmp(key, "snes9x_audio_interpolation") ||
+       !strcmp(key, "snes9x_echo_buffer_hack") ||
+       !strncmp(key, "snes9x_sndchan_", 14) ||
+       !strncmp(key, "snes9x_msu1_", 12))
+      return "audio";
+
+   if (!strcmp(key, "snes9x_overclock_superfx") ||
+       !strcmp(key, "snes9x_overclock_cycles") ||
+       !strcmp(key, "snes9x_randomize_memory") ||
+       !strcmp(key, "snes9x_block_invalid_vram_access") ||
+       !strcmp(key, "snes9x_superfx_timing"))
+      return "hacks";
+
+   return "video";
+}
+
+#endif /* RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2 */
+
 static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
 {
    unsigned version = 0;
@@ -760,6 +830,33 @@ static INLINE void libretro_set_core_options(retro_environment_t environ_cb)
    if (!environ_cb)
       return;
 
+ #ifdef RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2
+   if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 2))
+   {
+      /* Populate v2 from the existing v1 definitions so all options, including
+       * NTSC (Lie to PAL), retain their exact keys, values and defaults. */
+      static struct retro_core_option_v2_definition defs_v2[
+         sizeof(option_defs_us) / sizeof(option_defs_us[0])];
+      struct retro_core_options_v2 options_v2;
+      size_t i, j;
+      memset(defs_v2, 0, sizeof(defs_v2));
+      for (i = 0; option_defs_us[i].key; i++)
+      {
+         defs_v2[i].key = option_defs_us[i].key;
+         defs_v2[i].desc = option_defs_us[i].desc;
+         defs_v2[i].info = option_defs_us[i].info;
+         defs_v2[i].category_key = snes9x_option_category(option_defs_us[i].key);
+         defs_v2[i].default_value = option_defs_us[i].default_value;
+         for (j = 0; j < RETRO_NUM_CORE_OPTION_VALUES_MAX &&
+                     option_defs_us[i].values[j].value; j++)
+            defs_v2[i].values[j] = option_defs_us[i].values[j];
+      }
+      options_v2.categories = snes9x_option_categories;
+      options_v2.definitions = defs_v2;
+      if (environ_cb(RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2, &options_v2))
+         return; /* Do not overwrite v2 categories with v1 flat options. */
+   }
+#endif
    if (environ_cb(RETRO_ENVIRONMENT_GET_CORE_OPTIONS_VERSION, &version) && (version >= 1))
    {
 #ifndef HAVE_NO_LANGEXTRA

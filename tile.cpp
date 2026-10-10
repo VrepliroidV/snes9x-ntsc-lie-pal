@@ -4,7 +4,9 @@
    For further information, consult the LICENSE file in the root directory.
 \*****************************************************************************/
 
+#define _TILEIMPL_CPP_
 #include "tileimpl.h"
+#include "tile-mode7-hd.h"
 
 using namespace TileImpl;
 
@@ -403,6 +405,11 @@ void S9xSelectTileRenderers (int BGMode, bool8 sub, bool8 obj)
 		}
 	}
 
+    if (BGMode == 7 && (Settings.Mode7Hires || Settings.Mode7HiresBilinear))
+    {
+        if (!M7M1) DM7BG1 = Renderers<DrawMode7HD1, Mode7HDPixel>::Functions;
+        if (!M7M2) DM7BG2 = Renderers<DrawMode7HD2, Mode7HDPixel>::Functions;
+    }
 	GFX.DrawTileNomath        = DT[0];
 	GFX.DrawClippedTileNomath = DCT[0];
 	GFX.DrawMosaicPixelNomath = DMP[0];

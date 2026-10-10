@@ -14,7 +14,7 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Test Libretro options, timing and STAT78 using synthetic ROMs
+      - name: Test regions, HD Mode 7 and MSU-1 using synthetic ROMs
         shell: bash
         run: |
           mkdir -p build

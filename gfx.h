@@ -9,12 +9,13 @@
 
 #include "port.h"
 #include <vector>
+#define MAX_SNES_WIDTH_4X (SNES_WIDTH * 4)
 
 struct SGFX
 {
-	const uint32 Pitch = sizeof(uint16) * MAX_SNES_WIDTH;
-	const uint32 RealPPL = MAX_SNES_WIDTH; // true PPL of Screen buffer
-	const uint32 ScreenSize =  MAX_SNES_WIDTH * MAX_SNES_HEIGHT;
+	const uint32 Pitch = sizeof(uint16) * MAX_SNES_WIDTH_4X;
+	const uint32 RealPPL = MAX_SNES_WIDTH_4X; // true PPL of Screen buffer
+	const uint32 ScreenSize = MAX_SNES_WIDTH_4X * MAX_SNES_HEIGHT;
 	std::vector<uint16> ScreenBuffer;
 	uint16	*Screen;
 	uint16	*SubScreen;
