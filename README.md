@@ -2,12 +2,14 @@
 
 Núcleo **Snes9x Libretro** com uma quarta opção de região, **NTSC (Lie to PAL)**,
 para executar jogos com temporização NTSC enquanto o hardware emulado informa
-PAL ao jogo. O primeiro alvo do projeto é **Android ARM64 no RetroArch**.
+PAL ao jogo. A **Beta 2** acrescenta Mode 7 Hi-Res, MSU-1 Enhanced Audio e
+SuperFX Timing, e traz núcleos para **Android ARM64**, **Windows x64** e
+**Linux ARM64 (ROCKNIX)**.
 
-A implementação foi compilada no GitHub Actions e testada no RetroArch Android
-com a ROM original **Donkey Kong Country 2 (Europe) (Rev 1)**: a primeira fase
-foi concluída e a segunda foi desbloqueada normalmente. A validação de outros
-jogos permanece em aberto.
+A opção NTSC (Lie to PAL) foi testada no RetroArch Android com a ROM original
+**Donkey Kong Country 2 (Europe) (Rev 1)**: a primeira fase foi concluída e a
+segunda foi desbloqueada normalmente. A validação de outros jogos e dos recursos
+novos da Beta 2 em jogos reais permanece em aberto.
 
 ## Recursos adicionais da Beta 2
 
@@ -24,19 +26,20 @@ Os builds adicionais são núcleos Libretro para **Windows x64** e **Linux ARM64
 
 As versões públicas e seus arquivos ficam em
 [Releases do projeto](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases).
-O primeiro lançamento, **v1.0.0-beta.1 — Android ARM64 Beta 1**, está em preparação.
+A versão atual é a
+**[v1.0.0-beta.2 — Beta 2](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.2)**:
 
-Os arquivos previstos para essa versão são:
+| Arquivo | Conteúdo |
+| --- | --- |
+| `snes9x-ntsc-lie-pal-v1.0.0-beta.2-android-windows-rocknix.zip` | Os três núcleos em pastas separadas, `LEIA-ME.txt`, licenças e relatórios de validação |
+| `snes9x_libretro_android.so` | Núcleo Android ARM64 (RetroArch Android) |
+| `snes9x_libretro.dll` | Núcleo Windows x64 (RetroArch Windows) |
+| `snes9x_libretro.so` | Núcleo Linux ARM64 para ROCKNIX |
+| `SHA256SUMS` | Hashes dos arquivos acima |
 
-- `snes9x_libretro_android.so`: núcleo Android ARM64 para instalação no RetroArch.
-- `snes9x-ntsc-lie-pal-v1.0.0-beta.1-android-arm64.zip`: o mesmo núcleo, com
-  instruções básicas, informações de origem e avisos de licença.
-- `SHA256SUMS`: hashes dos arquivos para conferir a integridade do download.
-
-Até a publicação, o artefato aprovado está disponível na
-[execução 37941390187 do GitHub Actions](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/actions/runs/37941390187).
-É necessário entrar no GitHub para baixar artefatos de Actions. Extraia o ZIP
-antes de selecionar o `.so` no RetroArch.
+Use apenas o núcleo da sua plataforma. A
+[Beta 1](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.1)
+continua disponível, com o núcleo Android que traz apenas a opção NTSC (Lie to PAL).
 
 ## Por que uma opção adicional de região?
 
@@ -102,17 +105,23 @@ aparelho usado no teste relatado.
 
 | Plataforma | Situação deste projeto |
 | --- | --- |
-| Android ARM64 / `arm64-v8a` | Compilação aprovada no Actions e teste real no RetroArch Android |
-| Windows x64 | Planejado; sem artefato ou teste desta modificação nessa plataforma |
-| Linux ARM64 / Rocknix | Planejado; sem artefato ou teste desta modificação nessa plataforma |
+| Android ARM64 / `arm64-v8a` | Núcleo da Beta 2 com validação ELF aprovada. NTSC (Lie to PAL) testado no aparelho na Beta 1; recursos novos ainda sem teste em jogos reais |
+| Windows x64 | Núcleo Libretro (`.dll`) da Beta 2 com inspeção PE aprovada; sem teste em jogos reais |
+| Linux ARM64 / ROCKNIX | Núcleo Libretro (`.so`) da Beta 2 com testes de recursos por QEMU; sem teste no RG DS |
 
 O binário Android é compilado para **API 21 ou superior** (Android 5.0+), com
 libc++ estático e segmentos ELF alinhados a 16 KB. Esses são requisitos e
 propriedades do build, não uma validação em todas as versões do Android ou em
 todos os aparelhos. O RetroArch precisa executar como **aarch64/64 bits**.
 
-O build Linux x86_64 dos testes automatizados serve para verificar a emulação;
-ele não é uma distribuição pública Windows ou Rocknix deste projeto.
+O núcleo Windows é compilado com MinGW em C++17, com runtime estático; depende
+apenas de `KERNEL32.dll` e `msvcrt.dll`. O núcleo Linux ARM64 requer
+**glibc 2.29 ou posterior** e `libstdc++.so.6` com `GLIBCXX_3.4.29`. O QEMU não
+reproduz o ambiente completo do ROCKNIX nem mede desempenho no portátil.
+
+Os três são núcleos Libretro para usar no RetroArch, não emuladores standalone.
+O build Linux x86_64 dos testes automatizados serve apenas para verificar a
+emulação e não é distribuído.
 
 ## Instalação no RetroArch Android
 
@@ -122,9 +131,9 @@ ele não é uma distribuição pública Windows ou Rocknix deste projeto.
 2. Faça backup do núcleo Snes9x existente em **Configurações > Núcleo > Gerenciar
    núcleos > Snes9x > Fazer cópia de segurança**. O arquivo fornecido usa o nome
    `snes9x_libretro_android.so` e **substitui o Snes9x instalado**.
-3. Baixe o `.so` ou extraia o ZIP da versão e copie o arquivo para uma pasta
-   acessível pelo RetroArch. Desbloqueie o núcleo existente antes da instalação,
-   caso esteja bloqueado.
+3. Baixe o `.so` ou extraia o ZIP da versão (pasta `Android_ARM64`) e copie o
+   arquivo para uma pasta acessível pelo RetroArch. Desbloqueie o núcleo
+   existente antes da instalação, caso esteja bloqueado.
 4. Abra **Menu principal > Carregar núcleo > Instalar ou restaurar núcleo**,
    selecione `snes9x_libretro_android.so` e aguarde a conclusão. O aplicativo
    copia o arquivo para seu diretório de núcleos; não é necessário root.
@@ -135,6 +144,34 @@ ele não é uma distribuição pública Windows ou Rocknix deste projeto.
    o atualizador não o substitua pela versão original.
 
 Os nomes dos menus podem variar conforme a versão e o idioma do RetroArch.
+
+## Instalação no Windows e no ROCKNIX
+
+Feche o RetroArch antes de substituir um núcleo e faça backup do Snes9x
+existente, porque o arquivo deste projeto usa o mesmo nome.
+
+- **Windows x64:** copie `snes9x_libretro.dll` (pasta `Windows_x64` do ZIP) para
+  o diretório de núcleos do RetroArch, normalmente a pasta `cores`, e carregue o
+  núcleo Snes9x.
+- **ROCKNIX (Linux ARM64):** copie `snes9x_libretro.so` (pasta `ROCKNIX_ARM64`
+  do ZIP) para o diretório de núcleos configurado no RetroArch. O caminho e a
+  permissão de escrita dependem da instalação do sistema.
+
+Depois de copiar, carregue o núcleo e o jogo novamente.
+
+## Opções do núcleo
+
+| Categoria | Opção | Valores |
+| --- | --- | --- |
+| System | Console Region | Auto, NTSC, PAL, **NTSC (Lie to PAL)** |
+| Video | Mode 7 Hi-Res | disabled, 2x, 4x, 2x (H+V), 4x (H+V) |
+| Video | Mode 7 Hi-Res Filtering | disabled, Stable, Smooth |
+| Audio | MSU-1 Enhanced Audio | enabled (padrão), disabled; recarregue o conteúdo após mudar |
+| Emulation | SuperFX Timing | Cycle Accurate (padrão), Legacy |
+
+A localização e os nomes das categorias podem depender do frontend. O MSU-1
+Enhanced Audio não cria trilhas: o jogo precisa do patch e dos arquivos MSU-1
+compatíveis.
 
 ### Ativar NTSC (Lie to PAL)
 
@@ -156,7 +193,29 @@ PAL podem conter temporizações incompatíveis com uma sessão NTSC.
 
 ## Resultados de validação
 
-### Testes automatizados
+### Beta 2
+
+Os quatro jobs de CI do [PR #3](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/pull/3),
+`region-regression`, `android-arm64`, `windows-x64` e `rocknix-arm64`,
+concluíram com sucesso. Os relatórios acompanham os núcleos no ZIP da versão:
+
+- **Região:** 144 carregamentos de ROM de diagnóstico, cobrindo STAT78, contagem
+  de linhas NTSC/PAL, FPS, reset, save state e recarga.
+- **Mode 7 Hi-Res:** 15 combinações de escala e filtragem, com dimensões e
+  conteúdo conferidos, diferença real contra simples duplicação de pixels e
+  troca ao vivo.
+- **MSU-1:** detecção pelo arquivo `.msu` e saída em 44100/32040 Hz, com retorno
+  correto a um jogo comum.
+- **SuperFX:** ROM gerada executada nos dois modos, com ritmos distintos e troca
+  ao vivo.
+- **Builds:** validação ELF, importações e exportações no Android; testes de
+  recursos por QEMU no Linux ARM64; inspeção PE, exportações e dependências no
+  Windows.
+
+Os recursos novos ainda precisam de teste em jogos reais no Android, no Windows
+e no RG DS.
+
+### Beta 1 — testes automatizados
 
 A [execução aprovada do Actions](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/actions/runs/37941390187)
 usou o commit `1cc6195dc4a2449679ec7d47994748301a5d5ee6`. Os dois jobs,
@@ -171,15 +230,16 @@ sem ROM comercial. Passaram **72 cenários e 144 carregamentos**, cobrindo:
   e 311 em PAL, inclusive NTSC quando o novo modo reporta PAL.
 - FPS e `retro_get_region()`, reset, restauração de estado e da WRAM.
 - Mudanças de opção aplicadas após recarregar o conteúdo.
-- Frontends de opções 2/1/legado e definições em inglês/turco. Nesta revisão,
-  frontends que anunciam versão 2 recebem a interface de opções v1 do upstream.
+- Frontends de opções 2/1/legado e definições em inglês/turco. Na Beta 1,
+  frontends que anunciam versão 2 recebiam a interface de opções v1 do upstream;
+  a partir da Beta 2 eles recebem as categorias, com fallback v1/legado.
 
 O build Android foi vinculado e passou na inspeção ELF: AArch64, API 21,
 segmentos alinhados a 16 KB, 25 funções obrigatórias da API Libretro e
 importações verificadas contra os stubs Android API 21. As dependências de
 runtime são apenas `libc.so`, `libdl.so` e `libm.so`.
 
-### Teste real no RetroArch Android
+### Beta 1 — teste real no RetroArch Android
 
 O responsável pelo projeto relatou o seguinte teste com o núcleo do Actions:
 
@@ -210,6 +270,13 @@ Os detalhes de origem, inspeção e limites estão em
   RetroArch, campanhas completas e outros jogos ainda precisam de validação.
 - O alinhamento de 16 KB foi verificado no ELF; não foi informado um teste em
   aparelho com páginas de 16 KB.
+- Mode 7 Hi-Res, MSU-1 Enhanced Audio e SuperFX Timing foram verificados com
+  ROMs geradas nos testes automatizados, mas ainda não em jogos comerciais nos
+  aparelhos. Os núcleos Windows e ROCKNIX também aguardam teste real.
+- A interpolação vertical do Mode 7 (H+V) é um pós-processamento entre linhas,
+  não uma nova emulação por sublinha. A combinação 4x + filtro Blargg é reduzida
+  para 512 pixels antes do filtro NTSC.
+- Volumes individuais de canais não foram adicionados.
 
 Para relatar problemas, abra uma
 [issue](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/issues) com jogo/revisão,
@@ -226,25 +293,35 @@ Snes9x 1.63. O histórico oficial foi preservado no commit de importação
 `6c43020e`; a modificação funcional está em `827fb71c`. O commit `1cc6195d`
 acrescentou avisos de licença e preservação de logs no CI.
 
+Os recursos da Beta 2 entraram pelo
+[PR #3](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/pull/3). A
+implementação está no commit `31e37578`; as revisões seguintes, `631704b2` e
+`8b06d77b`, ajustam apenas a compilação Windows.
+
 O [workflow Android ARM64](.github/workflows/android-arm64.yml) usa
 **Android NDK r28c / 28.2.13676358**, `ndk-build`, `arm64-v8a`, `android-21`,
 `c++_static`, suporte a páginas de 16 KB e link com `--no-undefined`.
 Não é necessário inicializar os submódulos das interfaces desktop para este núcleo.
 
-Para compilar em um host Linux x86_64 com Git, Make, Python 3 e o NDK instalado:
+O [workflow Windows e ROCKNIX](.github/workflows/desktop-rocknix.yml) compila o
+núcleo Windows x64 com MinGW (`platform=win`, C++17, link estático) e o núcleo
+Linux ARM64 com `aarch64-linux-gnu-g++` (`platform=unix`). Em seguida, executa
+`tests/features_test.cpp` no núcleo ARM64 por QEMU.
+
+Para compilar o núcleo Android em um host Linux x86_64 com Git, Make, Python 3 e
+o NDK instalado:
 
 ```sh
 git clone https://github.com/VrepliroidV/snes9x-ntsc-lie-pal.git
 cd snes9x-ntsc-lie-pal
-git checkout feat/ntsc-lie-pal-android-arm64
 export ANDROID_NDK_HOME=/caminho/android-ndk-r28c
 bash scripts/build-android-arm64.sh
 ```
 
 A saída fica em `build/android-arm64/`, incluindo o `.so`, checksums, metadados,
 log, relatórios e licenças. O artefato de CI também inclui `android-core-smoke`,
-um verificador opcional de carregamento; ele não faz parte do ZIP básico de
-instalação e não foi relatado como executado no teste do aparelho.
+um verificador opcional de carregamento. Na Beta 2, ele acompanha o núcleo na
+pasta `Android_ARM64` do ZIP; não é necessário para instalar.
 
 Para reproduzir os testes de região no host:
 
@@ -252,11 +329,11 @@ Para reproduzir os testes de região no host:
 bash ci/test-region.sh
 ```
 
-Uma nova compilação pode produzir outro hash e identificar outro commit. A Beta 1
-é preparada a partir do artefato aprovado da execução indicada; o processo de
-empacotamento não recompila nem modifica seu `.so`. Sua origem e os hashes ficam
-registrados nos arquivos do lançamento e nas
-[notas preparadas da Beta 1](docs/releases/v1.0.0-beta.1.md).
+Uma nova compilação pode produzir outro hash e identificar outro commit. Os
+núcleos publicados não são recompilados no empacotamento. A origem e os hashes
+de cada versão ficam registrados nos arquivos do lançamento e nas notas da
+[Beta 1](docs/releases/v1.0.0-beta.1.md) e da
+[Beta 2](docs/releases/v1.0.0-beta.2.md).
 
 ## Licenças e créditos
 
