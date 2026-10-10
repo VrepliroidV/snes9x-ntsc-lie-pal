@@ -6,10 +6,10 @@ PAL ao jogo. A **Beta 2** acrescenta Mode 7 Hi-Res, MSU-1 Enhanced Audio e
 SuperFX Timing, e traz núcleos para **Android ARM64**, **Windows x64** e
 **Linux ARM64 (ROCKNIX)**.
 
-A opção NTSC (Lie to PAL) foi testada no RetroArch Android com a ROM original
-**Donkey Kong Country 2 (Europe) (Rev 1)**: a primeira fase foi concluída e a
-segunda foi desbloqueada normalmente. A validação de outros jogos e dos recursos
-novos da Beta 2 em jogos reais permanece em aberto.
+A idéia inicialmente era rodar **Donkey Kong Country 2 (Europe)** em NTSC, mas por conter muitos códigos anticopia em sua programação o jogo não se permitia avançar, e em alguns casos o emulador podia travar.
+Agora com o modo NTSC lie to PAL, o jogo acredita que está rodando em PAL mas na verdade está com os Timmings do modo NTSC.
+
+Foram feitos testes e funciona com os outros jogos PAL onde vc pode jogar em NTSC sem o jogo identificar a mudança de região, mostrar uma mensagem, simplesmente travar ou ficar com a tela preta.
 
 ## Recursos adicionais da Beta 2
 
