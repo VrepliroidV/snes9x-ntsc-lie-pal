@@ -10,10 +10,12 @@ static unsigned frame_width, frame_height;
 static std::vector<uint16_t> pixels;
 static retro_game_geometry geometry;
 static unsigned geometry_calls;
+static std::string last_message;
 static bool RETRO_CALLCONV feature_environment(unsigned command, void *data)
 {
     if (command == RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE) { *static_cast<int*>(data)=3; return true; }
     if (command == RETRO_ENVIRONMENT_SET_GEOMETRY) { geometry=*static_cast<const retro_game_geometry*>(data); geometry_calls++; return true; }
+    if (command == RETRO_ENVIRONMENT_SET_MESSAGE) { last_message=static_cast<const retro_message*>(data)->msg; return true; }
     if (command == RETRO_ENVIRONMENT_SET_CORE_OPTIONS_V2)
     {
         const auto *options=static_cast<retro_core_options_v2*>(data);
@@ -199,6 +201,10 @@ static void autocrop_test(Core& core,Frontend& current)
     show(0,31);frames=frames_to_crop(1,tiles,256,false);
     require(frames>85 && frames<=95,"Pixel-only letterbox took "+std::to_string(frames)+" frames");require_tight("Tile letterbox");
     std::printf("PASS AutoCrop black-tile letterbox 256x224 -> %ux%u in %d frames with motion\n",frame_width,frame_height,frames);
+    current.defaults["snes9x_auto_crop_debug"]="enabled";current.updated=true;last_message.clear();show(1,31);
+    require(last_message.rfind("AutoCrop: dark",0)==0 && last_message.find("| crop ")!=std::string::npos,"Debug message: "+last_message);
+    std::printf("PASS AutoCrop debug info on screen: %s\n",last_message.c_str());
+    current.defaults["snes9x_auto_crop_debug"]="disabled";current.updated=true;last_message.clear();show(1,31);require(last_message.empty(),"Debug message shown while disabled");
     show(1,300);require(saved_layouts().size()==2,"Tile letterbox not saved");
 
     show(5,20);require(frame_height==tiles,"Black screen changed the crop");

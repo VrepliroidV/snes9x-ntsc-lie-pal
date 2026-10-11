@@ -84,7 +84,7 @@ static const int AUTOCROP_MIN_CONTENT_FILL_PERCENT = 25;
 static const int AUTOCROP_GRID_STEP = 4;
 static const int AUTOCROP_GRID_WIDTH = 64;
 static const int AUTOCROP_GRID_HEIGHT = 60;
-static const int AUTOCROP_MOTION_SAMPLES = 8;
+static const int AUTOCROP_MOTION_SAMPLES = 4;
 static const char AUTOCROP_FILE_HEADER[] = "snes9x-autocrop 2";
 
 struct autocrop_layout

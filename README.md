@@ -203,6 +203,13 @@ inteiras.
 - Funciona com hi-res, Mode 7 Hi-Res, entrelaçado, filtro Blargg e com Crop
   Overscan desativado. A mira das pistolas de luz acompanha o corte.
 
+**Auto Crop Debug Info** (menu Video) mostra na tela, duas vezes por segundo, o que
+o Auto Crop mede: `dark` (borda escura encontrada), `ok` (parte que pode ser
+cortada), `wait` (o que falta para cortar: `hw` linhas de tela desligada ou `px`
+pixels pretos, quadros estáveis e quadros com movimento), `crop` (corte atual),
+`moved` (quadros com movimento no último meio segundo) e `saved` (enquadramentos
+gravados). Os valores são topo, base, esquerda e direita, em pixels do SNES.
+
 No RetroArch, deixe a proporção de tela (**Aspect Ratio**, nas opções de escala
 de vídeo) em **Core provided**. Com outra proporção fixa, o próprio RetroArch
 estica a imagem cortada.
