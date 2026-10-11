@@ -189,8 +189,9 @@ inteiras.
   cortadas quando a tela parece gameplay: a imagem ocupa pelo menos 40% da tela,
   cada borda tem no máximo 1/4 da imagem e o lado de dentro da borda é uma linha
   contínua de gráficos, não o contorno de um objeto. Na primeira vez, a borda
-  precisa ficar igual por 1,5 segundo enquanto a imagem se mexe. Por isso telas de
-  logo, texto sobre fundo preto e imagens paradas não são cortadas.
+  precisa ficar igual por 1,5 segundo enquanto a imagem se mexe, ou por 8 segundos
+  com a imagem parada (jogo pausado ou personagem parado). Por isso telas de logo
+  e texto sobre fundo preto não são cortadas.
 - Enquadramentos que ficam 5 segundos na tela são memorizados para o jogo e, dali
   em diante, cortados no primeiro quadro em que aparecem, inclusive em telas
   paradas como a pausa. Um enquadramento memorizado que é desmentido duas vezes

@@ -153,7 +153,7 @@ static void autocrop_test(Core& core,Frontend& current)
     auto show=[&](unsigned scene,int frames){for(int i=0;i<frames;i++){wram[0x40]=scene;core.retro_run();}};
     // Frames until the bordered screen is shown cropped; with "instant", any frame showing the border fails.
     auto frames_to_crop=[&](unsigned scene,unsigned cropped_height,unsigned cropped_width,bool instant){
-        for(int frame=1;frame<=200;frame++){show(scene,1);
+        for(int frame=1;frame<=600;frame++){show(scene,1);
             if(frame_height==cropped_height && frame_width==cropped_width)return frame;
             require(!instant || (content_rows()==frame_height && content_columns()==frame_width),"Border shown before a remembered crop");}
         throw std::runtime_error("Border never cropped");};
@@ -194,6 +194,8 @@ static void autocrop_test(Core& core,Frontend& current)
     std::printf("PASS AutoCrop layout saved after 5 s on screen and then cropped in the first frame (%d)\n",frames);
 
     show(0,31);never_cropped(12,120,"Unknown border on a still screen");
+    frames=120+frames_to_crop(12,tiles,256,false);require(frames>=475 && frames<=485,"Still border took "+std::to_string(frames)+" frames");
+    std::printf("PASS AutoCrop unknown border on a still screen cropped after %d frames (8 s)\n",frames);
     show(0,31);frames=frames_to_crop(1,tiles,256,false);
     require(frames>85 && frames<=95,"Pixel-only letterbox took "+std::to_string(frames)+" frames");require_tight("Tile letterbox");
     std::printf("PASS AutoCrop black-tile letterbox 256x224 -> %ux%u in %d frames with motion\n",frame_width,frame_height,frames);
@@ -205,7 +207,7 @@ static void autocrop_test(Core& core,Frontend& current)
     std::puts("PASS AutoCrop black and dark screens keep the crop without hiding graphics");
 
     show(1,100);show(0,31);frames=frames_to_crop(12,tiles,256,true);show(12,70);
-    std::printf("PASS AutoCrop still screens: new borders wait for motion, saved ones crop at once (%d)\n",frames);
+    std::printf("PASS AutoCrop saved layouts crop at once on still screens (%d)\n",frames);
 
     show(0,31);never_cropped(8,200,"Still logo on black");
     show(0,31);never_cropped(9,200,"Animated logo with an outline edge");

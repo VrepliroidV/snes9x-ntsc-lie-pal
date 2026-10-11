@@ -17,7 +17,8 @@
  * when the picture is mostly filled, each band is at most a quarter of the
  * picture and the edge next to the band is a solid line of graphics rather
  * than the outline of an object. Before such a band is cropped the first
- * time, it must also stay unchanged while the picture inside moves.
+ * time, it must also stay unchanged while the picture inside moves, or stay
+ * unchanged for several seconds on a still picture.
  *
  * Layouts that stay on screen for a while are remembered for the game and
  * cropped in the first frame they appear again. A remembered layout that
@@ -51,10 +52,13 @@ enum
     AUTOCROP_SIDES
 };
 
-/* First-time waits, in frames. Pixel-only borders also need moving frames. */
+/* First-time waits, in frames. Pixel-only borders need moving frames, or a
+ * much longer unchanged period on still screens (paused or idle games);
+ * logo screens rarely stay that long. */
 static const int AUTOCROP_HARDWARE_FRAMES = 2;
 static const int AUTOCROP_PIXEL_FRAMES = 90;
 static const int AUTOCROP_PIXEL_MOTION_FRAMES = 10;
+static const int AUTOCROP_PIXEL_STILL_FRAMES = 480;
 /* A layout shown this long is remembered and saved. */
 static const int AUTOCROP_ESTABLISH_FRAMES = 300;
 /* After graphics restore a side, remembered layouts wait this many frames,
@@ -477,7 +481,8 @@ static bool autocrop_update(autocrop_state *state, const int raw[AUTOCROP_SIDES]
         state->motion[side] += moving;
         const bool ready = hardware[side] ?
             state->stable[side] >= AUTOCROP_HARDWARE_FRAMES :
-            state->stable[side] >= AUTOCROP_PIXEL_FRAMES && state->motion[side] >= AUTOCROP_PIXEL_MOTION_FRAMES;
+            (state->stable[side] >= AUTOCROP_PIXEL_FRAMES && state->motion[side] >= AUTOCROP_PIXEL_MOTION_FRAMES) ||
+            state->stable[side] >= AUTOCROP_PIXEL_STILL_FRAMES;
         if (ready)
         {
             state->applied[side] = trusted[side];
