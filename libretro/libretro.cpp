@@ -64,7 +64,6 @@ bool g_geometry_update = false;
 static autocrop_mode auto_crop_mode = AUTOCROP_DISABLED;
 static autocrop_state auto_crop;
 static char auto_crop_file[4096]; // per-game layout memory; empty when unknown
-static bool auto_crop_debug = false;
 static bool in_retro_run = false;
 
 int hires_blend = 0;
@@ -347,10 +346,6 @@ static void update_variables(bool load_region = false)
         autocrop_reset_tracking(&auto_crop);
         g_geometry_update = true;
     }
-
-    var.key = "snes9x_auto_crop_debug";
-    var.value = NULL;
-    auto_crop_debug = environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value && !strcmp(var.value, "enabled");
 
     var.key = "snes9x_mode7_hires_bilinear";
     var.value = NULL;
@@ -2087,45 +2082,6 @@ bool retro_unserialize(const void* data, size_t size)
     return true;
 }
 
-// On-screen report of what the auto crop measures and waits for, refreshed
-// twice a second. Values are top/bottom/left/right in SNES pixels.
-static void auto_crop_show_debug(bool measured, const int raw[AUTOCROP_SIDES], const int trusted[AUTOCROP_SIDES],
-                                 const bool hardware[AUTOCROP_SIDES], bool moving)
-{
-    static unsigned frames = 0, moving_frames = 0;
-    moving_frames += moving;
-    if (++frames % 30)
-        return;
-
-    char text[256];
-    const int *a = auto_crop.applied;
-    int saved = 0;
-    for (int i = 0; i < auto_crop.layout_count; i++)
-        saved += auto_crop.layouts[i].established;
-    if (!measured)
-        snprintf(text, sizeof(text), "AutoCrop: all dark | crop %d %d %d %d | saved %d", a[0], a[1], a[2], a[3], saved);
-    else
-    {
-        // The side closest to being cropped.
-        int side = -1;
-        for (int i = 0; i < AUTOCROP_SIDES; i++)
-            if (trusted[i] > a[i] && (side < 0 || auto_crop.stable[i] > auto_crop.stable[side]))
-                side = i;
-        char wait[64] = "-";
-        if (side >= 0)
-            snprintf(wait, sizeof(wait), "%s %d/%d move %d/%d", hardware[side] ? "hw" : "px", auto_crop.stable[side],
-                     hardware[side] ? AUTOCROP_HARDWARE_FRAMES : AUTOCROP_PIXEL_FRAMES,
-                     auto_crop.motion[side], AUTOCROP_PIXEL_MOTION_FRAMES);
-        snprintf(text, sizeof(text), "AutoCrop: dark %d %d %d %d | ok %d %d %d %d | wait %s | crop %d %d %d %d | moved %u/30 | saved %d",
-                 raw[0], raw[1], raw[2], raw[3], trusted[0], trusted[1], trusted[2], trusted[3], wait,
-                 a[0], a[1], a[2], a[3], moving_frames, saved);
-    }
-    moving_frames = 0;
-
-    struct retro_message message = { text, 40 };
-    environ_cb(RETRO_ENVIRONMENT_SET_MESSAGE, &message);
-}
-
 // Measures the frame about to be shown and updates the auto crop.
 static void auto_crop_process(int width, int height, int overscan_offset)
 {
@@ -2154,11 +2110,8 @@ static void auto_crop_process(int width, int height, int overscan_offset)
 
     int raw[AUTOCROP_SIDES], trusted[AUTOCROP_SIDES];
     bool hardware[AUTOCROP_SIDES];
-    const bool measured = autocrop_measure(frame, raw, trusted, hardware);
-    bool moving = false;
-    if (measured)
-        moving = autocrop_motion(&auto_crop, frame);
-    if (measured && autocrop_update(&auto_crop, raw, trusted, hardware, moving))
+    if (autocrop_measure(frame, raw, trusted, hardware) &&
+        autocrop_update(&auto_crop, raw, trusted, hardware, autocrop_motion(&auto_crop, frame)))
     {
         // Same frame when possible, so the new crop and aspect arrive together.
         if (in_retro_run)
@@ -2168,9 +2121,6 @@ static void auto_crop_process(int width, int height, int overscan_offset)
     }
     if (auto_crop.layouts_changed && auto_crop_file[0])
         autocrop_save_layouts(&auto_crop, auto_crop_file);
-
-    if (auto_crop_debug)
-        auto_crop_show_debug(measured, raw, trusted, hardware, moving);
 }
 
 // Applies the current crop to an output frame of out_width x out_height.

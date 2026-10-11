@@ -120,17 +120,6 @@ struct retro_core_option_definition option_defs_us[] = {
       "disabled"
    },
    {
-      "snes9x_auto_crop_debug",
-      "Auto Crop Debug Info",
-      "Show on screen, twice a second, what Auto Crop Black Borders measures: dark border (dark), the part it may crop (ok), what it is waiting for (wait), the current crop and how many layouts are saved. Values are top, bottom, left and right in SNES pixels.",
-      {
-         { "disabled", NULL },
-         { "enabled",  NULL },
-         { NULL, NULL},
-      },
-      "disabled"
-   },
-   {
       "snes9x_gfx_hires",
       "Enable Hi-Res Mode",
       "Allow games to switch to hi-res mode (512x448) or force all content to output at 256x224 (with crushed pixels).",
