@@ -27,6 +27,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include "filter/snes_ntsc.h"
+#include "autocrop.h"
 
 #define RETRO_DEVICE_JOYPAD_MULTITAP ((1 << 8) | RETRO_DEVICE_JOYPAD)
 #define RETRO_DEVICE_LIGHTGUN_SUPER_SCOPE ((1 << 8) | RETRO_DEVICE_LIGHTGUN)
@@ -59,6 +60,10 @@ char g_rom_dir[1024];
 char g_basename[1024];
 
 bool g_geometry_update = false;
+
+static autocrop_mode auto_crop_mode = AUTOCROP_DISABLED;
+static autocrop_state auto_crop;
+static bool in_retro_run = false;
 
 int hires_blend = 0;
 static bool msu1_enhanced_pref = true;
@@ -299,8 +304,6 @@ void update_geometry(void)
     struct retro_system_av_info av_info;
     retro_get_system_av_info(&av_info);
     environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &av_info);
-    g_screen_gun_width = av_info.geometry.base_width;
-    g_screen_gun_height = av_info.geometry.base_height;
     g_geometry_update = false;
 }
 
@@ -328,6 +331,21 @@ static void update_variables(bool load_region = false)
     }
     if (previous_scale != Settings.Mode7Hires || previous_vertical != Settings.Mode7HiresVertical)
         g_geometry_update = true;
+    var.key = "snes9x_auto_crop";
+    var.value = NULL;
+    autocrop_mode new_crop_mode = AUTOCROP_DISABLED;
+    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+    {
+        if (!strcmp(var.value, "fit")) new_crop_mode = AUTOCROP_FIT;
+        else if (!strcmp(var.value, "stretch")) new_crop_mode = AUTOCROP_STRETCH;
+    }
+    if (new_crop_mode != auto_crop_mode)
+    {
+        auto_crop_mode = new_crop_mode;
+        autocrop_reset(&auto_crop);
+        g_geometry_update = true;
+    }
+
     var.key = "snes9x_mode7_hires_bilinear";
     var.value = NULL;
     Settings.Mode7HiresBilinear = 0;
@@ -881,6 +899,20 @@ void retro_get_system_av_info(struct retro_system_av_info *info)
     info->geometry.max_width = MAX_SNES_WIDTH_4X;
     info->geometry.max_height = MAX_SNES_HEIGHT;
     info->geometry.aspect_ratio = get_aspect_ratio(width, height);
+
+    if (auto_crop_mode != AUTOCROP_DISABLED)
+    {
+        const int cropped_width = (int)width - auto_crop.applied[AUTOCROP_LEFT] - auto_crop.applied[AUTOCROP_RIGHT];
+        const int cropped_height = (int)height - auto_crop.applied[AUTOCROP_TOP] - auto_crop.applied[AUTOCROP_BOTTOM];
+        if (cropped_width > 0 && cropped_height > 0)
+        {
+            info->geometry.base_width = cropped_width;
+            info->geometry.base_height = cropped_height;
+            // Fit keeps the pixel shape; Stretch keeps the full-frame aspect.
+            if (auto_crop_mode == AUTOCROP_FIT)
+                info->geometry.aspect_ratio *= ((float)cropped_width / width) / ((float)cropped_height / height);
+        }
+    }
     info->timing.sample_rate = Settings.SoundPlaybackRate;
     info->timing.fps = retro_get_region() == RETRO_REGION_NTSC ? 21477272.0 / 357366.0 : 21281370.0 / 425568.0;
 
@@ -897,6 +929,8 @@ unsigned retro_api_version()
 void retro_reset()
 {
     S9xSoftReset();
+    autocrop_reset(&auto_crop);
+    g_geometry_update = true;
 }
 
 static unsigned snes_devices[8];
@@ -1160,6 +1194,7 @@ bool retro_load_game(const struct retro_game_info *game)
     init_descriptors();
 
     update_variables(true);
+    autocrop_reset(&auto_crop);
 
     if(game->data == NULL && game->size == 0 && game->path != NULL)
         rom_loaded = Memory.LoadROM(game->path);
@@ -1262,6 +1297,7 @@ bool retro_load_game_special(unsigned game_type, const struct retro_game_info *i
 
     init_descriptors();
     rom_loaded = false;
+    autocrop_reset(&auto_crop);
 
     update_variables(true);
     switch (game_type)
@@ -1578,6 +1614,23 @@ static void map_buttons()
 static int16_t snes_mouse_state[2][2] = {{0}, {0}};
 static bool snes_superscope_turbo_latch = false;
 
+static int gun_axis(int value, int size, int crop_start, int crop_end)
+{
+	int visible = size - crop_start - crop_end;
+	if ( visible < 1 )
+	{
+		visible = size;
+		crop_start = 0;
+	}
+
+	value = crop_start + ( ( value + 0x7FFF ) * visible ) / 0xFFFF;
+	if ( value < 0 )
+		value = 0;
+	else if ( value >= size )
+		value = size - 1;
+	return value;
+}
+
 static void input_report_gun_position( unsigned port, int s9xinput )
 {
 	int x, y;
@@ -1585,19 +1638,9 @@ static void input_report_gun_position( unsigned port, int s9xinput )
     x = input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_SCREEN_X);
     y = input_state_cb(port, RETRO_DEVICE_LIGHTGUN, 0, RETRO_DEVICE_ID_LIGHTGUN_SCREEN_Y);
 
-	/*scale & clamp*/
-	x = ( ( x + 0x7FFF ) * g_screen_gun_width ) / 0xFFFF;
-	if ( x < 0 )
-		x = 0;
-	else if ( x >= g_screen_gun_width )
-		x = g_screen_gun_width - 1;
-
-	/*scale & clamp*/
-	y = ( ( y + 0x7FFF ) * g_screen_gun_height ) / 0xFFFF;
-	if ( y < 0 )
-		y = 0;
-	else if ( y >= g_screen_gun_height )
-		y = g_screen_gun_height - 1;
+	/*scale & clamp; the frontend coordinates cover only the cropped area*/
+	x = gun_axis(x, g_screen_gun_width, auto_crop.applied[AUTOCROP_LEFT], auto_crop.applied[AUTOCROP_RIGHT]);
+	y = gun_axis(y, g_screen_gun_height, auto_crop.applied[AUTOCROP_TOP], auto_crop.applied[AUTOCROP_BOTTOM]);
 
 	S9xReportPointer(s9xinput, (int16_t)x, (int16_t)y);
 }
@@ -1608,19 +1651,9 @@ static void input_handle_pointer_lightgun( unsigned port, unsigned gun_device, i
     x = input_state_cb(port, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_X);
     y = input_state_cb(port, RETRO_DEVICE_POINTER, 0, RETRO_DEVICE_ID_POINTER_Y);
 
-	/*scale & clamp*/
-	x = ( ( x + 0x7FFF ) * g_screen_gun_width ) / 0xFFFF;
-	if ( x < 0 )
-		x = 0;
-	else if ( x >= g_screen_gun_width )
-		x = g_screen_gun_width - 1;
-
-	/*scale & clamp*/
-	y = ( ( y + 0x7FFF ) * g_screen_gun_height ) / 0xFFFF;
-	if ( y < 0 )
-		y = 0;
-	else if ( y >= g_screen_gun_height )
-		y = g_screen_gun_height - 1;
+	/*scale & clamp; the frontend coordinates cover only the cropped area*/
+	x = gun_axis(x, g_screen_gun_width, auto_crop.applied[AUTOCROP_LEFT], auto_crop.applied[AUTOCROP_RIGHT]);
+	y = gun_axis(y, g_screen_gun_height, auto_crop.applied[AUTOCROP_TOP], auto_crop.applied[AUTOCROP_BOTTOM]);
 
     // Touch sensitivity: Keep the gun position held for a fixed number of cycles after touch is released
     // because a very light touch can result in a misfire
@@ -1909,7 +1942,9 @@ void retro_run()
 
     poll_cb();
     report_buttons();
+    in_retro_run = true;
     S9xMainLoop();
+    in_retro_run = false;
 }
 
 void retro_deinit()
@@ -2031,6 +2066,67 @@ bool retro_unserialize(const void* data, size_t size)
     return true;
 }
 
+// Measures the frame about to be shown and updates the auto crop.
+static void auto_crop_process(int width, int height, int overscan_offset)
+{
+    static uint8 hardware_rows[MAX_SNES_HEIGHT];
+    const int vscale = height > SNES_HEIGHT_EXTENDED ? 2 : 1;
+    const int hscale = width >= SNES_WIDTH ? width / SNES_WIDTH : 1;
+
+    for (int row = 0; row < height; row++)
+    {
+        const int screen_row = row + overscan_offset;
+        const int line = screen_row < 0 ? -1 : screen_row / vscale;
+        // Padding rows outside the emulated picture are display-off lines.
+        hardware_rows[row] = (line < 0 || line >= PPU.ScreenHeight) ? 1 : GFX.LineBlank[line];
+    }
+
+    autocrop_frame frame;
+    frame.pixels = GFX.Screen + (int)(GFX.Pitch >> 1) * overscan_offset;
+    frame.pitch = GFX.Pitch >> 1;
+    frame.width = width;
+    frame.height = height;
+    frame.hscale = hscale;
+    frame.vscale = vscale;
+    frame.base_width = SNES_WIDTH;
+    frame.base_height = height / vscale;
+    frame.hardware_rows = hardware_rows;
+
+    int band[AUTOCROP_SIDES];
+    bool hardware[AUTOCROP_SIDES];
+    if (autocrop_measure(frame, band, hardware) && autocrop_update(&auto_crop, band, hardware))
+    {
+        // Same frame when possible, so the new crop and aspect arrive together.
+        if (in_retro_run)
+            update_geometry();
+        else
+            g_geometry_update = true;
+    }
+}
+
+// Applies the current crop to an output frame of out_width x out_height.
+static void auto_crop_rect(int out_width, int out_height, int vscale, int &left, int &top, int &width, int &height)
+{
+    left = top = 0;
+    width = out_width;
+    height = out_height;
+    if (auto_crop_mode == AUTOCROP_DISABLED)
+        return;
+
+    // Round horizontal edges inward for filtered widths such as Blargg NTSC.
+    const int crop_left = (auto_crop.applied[AUTOCROP_LEFT] * out_width + SNES_WIDTH - 1) / SNES_WIDTH;
+    const int crop_right = (auto_crop.applied[AUTOCROP_RIGHT] * out_width + SNES_WIDTH - 1) / SNES_WIDTH;
+    const int crop_top = auto_crop.applied[AUTOCROP_TOP] * vscale;
+    const int crop_bottom = auto_crop.applied[AUTOCROP_BOTTOM] * vscale;
+    if (crop_left + crop_right >= out_width || crop_top + crop_bottom >= out_height)
+        return;
+
+    left = crop_left;
+    top = crop_top;
+    width = out_width - crop_left - crop_right;
+    height = out_height - crop_top - crop_bottom;
+}
+
 bool8 S9xDeinitUpdate(int width, int height)
 {
     static int burst_phase = 0;
@@ -2071,6 +2167,10 @@ bool8 S9xDeinitUpdate(int width, int height)
         }
     }
 
+    const int crop_vscale = height > SNES_HEIGHT_EXTENDED ? 2 : 1;
+    int crop_left, crop_top, crop_width, crop_height;
+    if (auto_crop_mode != AUTOCROP_DISABLED)
+        auto_crop_process(width, height, overscan_offset);
 
     if (blargg_filter && width == MAX_SNES_WIDTH_4X)
     {
@@ -2090,7 +2190,8 @@ bool8 S9xDeinitUpdate(int width, int height)
         else
             snes_ntsc_blit(snes_ntsc, GFX.Screen, GFX.Pitch / 2, burst_phase, width, height, snes_ntsc_buffer, MAX_SNES_WIDTH_NTSC * 2);
 
-        video_cb(snes_ntsc_buffer + ((int)(MAX_SNES_WIDTH_NTSC) * overscan_offset), SNES_NTSC_OUT_WIDTH(256), height, MAX_SNES_WIDTH_NTSC * 2);
+        auto_crop_rect(SNES_NTSC_OUT_WIDTH(256), height, crop_vscale, crop_left, crop_top, crop_width, crop_height);
+        video_cb(snes_ntsc_buffer + ((int)(MAX_SNES_WIDTH_NTSC) * (overscan_offset + crop_top)) + crop_left, crop_width, crop_height, MAX_SNES_WIDTH_NTSC * 2);
     }
     else if (width == MAX_SNES_WIDTH && hires_blend)
     {
@@ -2136,11 +2237,13 @@ bool8 S9xDeinitUpdate(int width, int height)
             width >>= 1;
         }
 
-        video_cb(GFX.Screen + ((int)(GFX.Pitch >> 1) * overscan_offset), width, height, GFX.Pitch);
+        auto_crop_rect(width, height, crop_vscale, crop_left, crop_top, crop_width, crop_height);
+        video_cb(GFX.Screen + ((int)(GFX.Pitch >> 1) * (overscan_offset + crop_top)) + crop_left, crop_width, crop_height, GFX.Pitch);
     }
     else
     {
-        video_cb(GFX.Screen + ((int)(GFX.Pitch >> 1) * overscan_offset), width, height, GFX.Pitch);
+        auto_crop_rect(width, height, crop_vscale, crop_left, crop_top, crop_width, crop_height);
+        video_cb(GFX.Screen + ((int)(GFX.Pitch >> 1) * (overscan_offset + crop_top)) + crop_left, crop_width, crop_height, GFX.Pitch);
     }
 
     return TRUE;
