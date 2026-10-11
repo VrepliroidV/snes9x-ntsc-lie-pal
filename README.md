@@ -166,12 +166,39 @@ Depois de copiar, carregue o núcleo e o jogo novamente.
 | System | Console Region | Auto, NTSC, PAL, **NTSC (Lie to PAL)** |
 | Video | Mode 7 Hi-Res | disabled, 2x, 4x, 2x (H+V), 4x (H+V) |
 | Video | Mode 7 Hi-Res Filtering | disabled, Stable, Smooth |
+| Video | Auto Crop Black Borders | disabled (padrão), Fit (keep proportions), Stretch (fill frame) |
 | Audio | MSU-1 Enhanced Audio | enabled (padrão), disabled; recarregue o conteúdo após mudar |
 | Emulation | SuperFX Timing | Cycle Accurate (padrão), Legacy |
 
 A localização e os nomes das categorias podem depender do frontend. O MSU-1
 Enhanced Audio não cria trilhas: o jogo precisa do patch e dos arquivos MSU-1
 compatíveis.
+
+### Auto Crop Black Borders
+
+Detecta bordas pretas ao redor da imagem do jogo e mostra só a área do jogo. Cada
+tela é avaliada separadamente, então telas sem borda no mesmo jogo continuam
+inteiras.
+
+- **Fit (keep proportions):** amplia a área do jogo sem deformar os pixels.
+- **Stretch (fill frame):** estica a área do jogo até preencher o quadro original.
+- Linhas desenhadas com a tela desligada (forced blank, brilho zero ou sem camadas)
+  são reconhecidas pelo próprio núcleo e cortadas após 2 quadros.
+- Bordas que são apenas pixels pretos, como tiles pretos ou janelas, precisam
+  ficar iguais por 30 quadros (cerca de meio segundo) na primeira vez. Elas são
+  ignoradas em telas com muito preto, como texto sobre fundo preto.
+- Cada enquadramento confirmado fica memorizado para o jogo. Quando a mesma borda
+  aparece de novo, o corte é aplicado no primeiro quadro, sem a borda aparecer.
+  A memória fica no arquivo `<nome da ROM>.autocrop`, na pasta de saves do
+  RetroArch; apague o arquivo para o jogo aprender de novo.
+- Se algum gráfico aparecer na área cortada, aquele lado volta no mesmo quadro.
+  Telas pretas e fades mantêm o corte atual, sem a imagem se mexer.
+- Funciona com hi-res, Mode 7 Hi-Res, entrelaçado, filtro Blargg e com Crop
+  Overscan desativado. A mira das pistolas de luz acompanha o corte.
+
+No RetroArch, deixe a proporção de tela (**Aspect Ratio**, nas opções de escala
+de vídeo) em **Core provided**. Com outra proporção fixa, o próprio RetroArch
+estica a imagem cortada.
 
 ### Ativar NTSC (Lie to PAL)
 
