@@ -70,6 +70,14 @@
 #define SNES_MAX_PAL_VCOUNTER		312
 #define SNES_HCOUNTER_MAX			341
 
+/* The Libretro "Reduce Slowdown" option changes these cycle counts while the
+ * core runs, so every Libretro build needs them as settings. Some build files
+ * (jni/Android.mk, the MSVC projects) did not define ALLOW_CPU_OVERCLOCK, which
+ * left the option without any effect on those platforms. */
+#if defined(__LIBRETRO__) && !defined(ALLOW_CPU_OVERCLOCK)
+#define ALLOW_CPU_OVERCLOCK
+#endif
+
 #ifndef ALLOW_CPU_OVERCLOCK
 #define ONE_CYCLE					6
 #define SLOW_ONE_CYCLE				8

@@ -272,6 +272,26 @@ static void autocrop_test(Core& core,Frontend& current)
     current.defaults["snes9x_overscan"]="enabled";current.defaults["snes9x_auto_crop"]="disabled";core.retro_unload_game();
     std::remove(memory_file);
 }
+// Busy loop counting in WRAM $20-$21: more CPU cycles per frame count further.
+static std::vector<uint8_t> busy_rom()
+{
+    auto rom=diagnostic_rom(false);size_t pc=0;
+    auto emit=[&](std::initializer_list<uint8_t> bytes){for(auto b:bytes)rom[pc++]=b;};
+    emit({0x78,0xd8,0xa9,0x80,0x8d,0x00,0x21,0x64,0x20,0x64,0x21}); // SEI; CLD; forced blank; STZ $20/$21
+    const size_t loop=pc;
+    emit({0xe6,0x20,0xd0,0x02,0xe6,0x21,0x4c,(uint8_t)loop,(uint8_t)(0x80+(loop>>8))}); // INC $20; BNE +2; INC $21; JMP loop
+    return rom;
+}
+static unsigned busy_count(Core& core,Frontend& current,const char* overclock)
+{
+    current.defaults["snes9x_overclock_cycles"]=overclock;
+    const auto rom=busy_rom();retro_game_info game={"feature-overclock.sfc",rom.data(),rom.size(),nullptr};
+    require(core.retro_load_game(&game),"Overclock load");for(int i=0;i<3;i++)core.retro_run();
+    const auto* w=static_cast<uint8_t*>(core.retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));
+    const unsigned start=w[0x20]|(unsigned(w[0x21])<<8);for(int i=0;i<4;i++)core.retro_run(); // stays below 65536
+    const unsigned count=((w[0x20]|(unsigned(w[0x21])<<8))-start)&0xffff;core.retro_unload_game();
+    current.defaults["snes9x_overclock_cycles"]="disabled";return count;
+}
 static unsigned gsu_counter(Core& core)
 {
     auto* w=static_cast<uint8_t*>(core.retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));return w[0x20]|(unsigned(w[0x21])<<8);
@@ -327,6 +347,13 @@ int main(int argc,char**argv)
         current.defaults["snes9x_superfx_timing"]="accurate";require(core.retro_load_game(&fx_game),"GSU live load");for(int i=0;i<3;i++)core.retro_run();
         current.defaults["snes9x_superfx_timing"]="legacy";current.updated=true;core.retro_run();
         unsigned before=gsu_counter(core);core.retro_run();require(((gsu_counter(core)-before)&65535)==counts[1],"Live GSU timing differs from legacy after reload");core.retro_unload_game();
+        {
+            const unsigned normal=busy_count(core,current,"disabled"),light=busy_count(core,current,"light");
+            const unsigned compatible=busy_count(core,current,"compatible"),fastest=busy_count(core,current,"max");
+            require(normal>0 && light>=normal && compatible>light && fastest>compatible && fastest*10>=normal*18,
+                "Reduce Slowdown has no effect: "+std::to_string(normal)+"/"+std::to_string(light)+"/"+std::to_string(compatible)+"/"+std::to_string(fastest));
+            std::printf("PASS Reduce Slowdown CPU work per 4 frames: disabled %u, light %u, compatible %u, max %u\n",normal,light,compatible,fastest);
+        }
         require(current.defaults.count("snes9x_auto_crop") && current.defaults["snes9x_auto_crop"]=="disabled","Auto crop option missing or not disabled by default");
         autocrop_test(core,current);
         std::puts("PASS features: native/HD rendering, live changes, MSU rates, auto crop and categories");return 0;
