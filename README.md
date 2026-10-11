@@ -183,12 +183,16 @@ inteiras.
 - **Fit (keep proportions):** amplia a área do jogo sem deformar os pixels.
 - **Stretch (fill frame):** estica a área do jogo até preencher o quadro original.
 - Linhas desenhadas com a tela desligada (forced blank, brilho zero ou sem camadas)
-  são reconhecidas pelo próprio núcleo e cortadas após 6 quadros estáveis.
+  são reconhecidas pelo próprio núcleo e cortadas após 2 quadros.
 - Bordas que são apenas pixels pretos, como tiles pretos ou janelas, precisam
-  ficar iguais por 60 quadros (cerca de 1 segundo). Elas são ignoradas em telas
-  com muito preto, como texto sobre fundo preto.
-- Se algum gráfico aparecer na área cortada, a imagem inteira volta no mesmo
-  quadro. Telas totalmente pretas, como fades, mantêm o corte atual.
+  ficar iguais por 30 quadros (cerca de meio segundo) na primeira vez. Elas são
+  ignoradas em telas com muito preto, como texto sobre fundo preto.
+- Cada enquadramento confirmado fica memorizado para o jogo. Quando a mesma borda
+  aparece de novo, o corte é aplicado no primeiro quadro, sem a borda aparecer.
+  A memória fica no arquivo `<nome da ROM>.autocrop`, na pasta de saves do
+  RetroArch; apague o arquivo para o jogo aprender de novo.
+- Se algum gráfico aparecer na área cortada, aquele lado volta no mesmo quadro.
+  Telas pretas e fades mantêm o corte atual, sem a imagem se mexer.
 - Funciona com hi-res, Mode 7 Hi-Res, entrelaçado, filtro Blargg e com Crop
   Overscan desativado. A mira das pistolas de luz acompanha o corte.
 

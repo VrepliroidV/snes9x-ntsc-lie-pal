@@ -110,7 +110,7 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "snes9x_auto_crop",
       "Auto Crop Black Borders",
-      "Detect black borders around the game picture and show only the game area. Each screen is checked separately: graphics reaching a cropped area are shown again immediately, and new borders are cropped once they stay unchanged. 'Fit' keeps the pixel proportions; 'Stretch' fills the original frame. Set RetroArch's aspect ratio to 'Core provided'.",
+      "Detect black borders around the game picture and show only the game area. Each screen is checked separately: graphics reaching a cropped area are shown again immediately, new borders are cropped once they stay unchanged, and borders already seen in the game are cropped at once. 'Fit' keeps the pixel proportions; 'Stretch' fills the original frame. Set RetroArch's aspect ratio to 'Core provided'.",
       {
          { "disabled", NULL },
          { "fit",      "Fit (keep proportions)" },

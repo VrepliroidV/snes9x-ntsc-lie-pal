@@ -84,7 +84,7 @@ static std::vector<uint8_t> autocrop_rom()
     auto map=[&](unsigned index,bool (*content)(unsigned,unsigned)){
         for(unsigned y=0;y<32;y++)for(unsigned x=0;x<32;x++)rom[0x2000+index*0x800+(y*32+x)*2]=content(x,y)?1:0;};
     map(0,[](unsigned,unsigned){return true;});
-    map(1,[](unsigned,unsigned y){return y>=4 && y<24;});
+    map(1,[](unsigned,unsigned y){return y>=3 && y<24;});
     map(2,[](unsigned x,unsigned){return x>=2 && x<30;});
     map(3,[](unsigned x,unsigned y){return y>=12 && y<15 && x>=8 && x<24;});
     const uint8_t hdma[]={0x20,0x80,0x7f,0x0f,0x21,0x0f,0x01,0x80,0x00}; // black lines 0-31 and from 192
@@ -125,61 +125,72 @@ static bool near(double a,double b){return std::fabs(a-b)<1e-4;}
 static void autocrop_test(Core& core,Frontend& current)
 {
     const auto rom=autocrop_rom();retro_game_info game={"feature-autocrop.sfc",rom.data(),rom.size(),nullptr};
+    const char* memory_file="./feature-autocrop.autocrop";std::remove(memory_file);
     uint8_t* wram=nullptr;
+    auto load=[&](const char* mode){current.defaults["snes9x_auto_crop"]=mode;require(core.retro_load_game(&game),"Autocrop load");
+        wram=static_cast<uint8_t*>(core.retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));};
     auto show=[&](unsigned scene,int frames){for(int i=0;i<frames;i++){wram[0x40]=scene;core.retro_run();}};
+    // Frames until the bordered screen is shown cropped; a frame showing the border fails "instant".
+    auto frames_to_crop=[&](unsigned scene,unsigned cropped_height,unsigned cropped_width,bool instant){
+        for(int frame=1;frame<=60;frame++){show(scene,1);
+            if(frame_height==cropped_height && frame_width==cropped_width)return frame;
+            require(!instant || (content_rows()==frame_height && content_columns()==frame_width),"Border shown before a remembered crop");}
+        throw std::runtime_error("Border never cropped");};
     const double full_aspect=4.0/3.0;
 
-    current.defaults["snes9x_auto_crop"]="disabled";
-    require(core.retro_load_game(&game),"Autocrop load");wram=static_cast<uint8_t*>(core.retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));
-    show(4,20);require(frame_width==256 && frame_height==224,"Disabled option cropped the picture");
-    require(content_rows()<224,"HDMA letterbox did not draw black lines");core.retro_unload_game();
+    load("disabled");
+    show(4,6);const unsigned letterbox=content_rows();
+    show(1,6);const unsigned tiles=content_rows();
+    show(2,6);const unsigned columns=content_columns();
+    require(frame_width==256 && frame_height==224,"Disabled option cropped the picture");
+    require(letterbox>=158 && letterbox<=162 && tiles>=166 && tiles<=170 && tiles!=letterbox && columns==224,
+        "Unexpected test borders "+std::to_string(letterbox)+"/"+std::to_string(tiles)+"/"+std::to_string(columns));
+    core.retro_unload_game();
     std::puts("PASS AutoCrop disabled: picture unchanged");
 
-    current.defaults["snes9x_auto_crop"]="fit";
-    require(core.retro_load_game(&game),"Autocrop load");wram=static_cast<uint8_t*>(core.retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));
+    load("fit");
     show(0,10);require(frame_width==256 && frame_height==224,"Full screen was cropped");
     require(near(geometry.aspect_ratio,full_aspect) && geometry.base_height==224,"Full screen geometry");
 
-    show(4,2);require(frame_height==224,"Hardware letterbox cropped too early");
-    const unsigned letterbox=content_rows();require(letterbox>=158 && letterbox<=162,"Unexpected HDMA letterbox size "+std::to_string(letterbox));
-    show(4,3);require(frame_height==224,"Hardware letterbox cropped before it was stable");
-    show(4,5);require(frame_width==256 && frame_height==letterbox,"Hardware letterbox not cropped: "+std::to_string(frame_height));
+    int frames=frames_to_crop(4,letterbox,256,false);require(frames<=4,"Hardware letterbox took "+std::to_string(frames)+" frames");
     require_tight("Hardware letterbox");
     require(geometry.base_height==letterbox && near(geometry.aspect_ratio,full_aspect*224.0/letterbox),"Fit geometry for letterbox");
-    std::printf("PASS AutoCrop hardware letterbox 256x224 -> %ux%u aspect %.4f\n",frame_width,frame_height,geometry.aspect_ratio);
+    std::printf("PASS AutoCrop hardware letterbox 256x224 -> %ux%u in %d frames, aspect %.4f\n",frame_width,frame_height,frames,geometry.aspect_ratio);
 
-    show(0,2);require(frame_width==256 && frame_height==224,"Picture returning to the border was not shown at once");
+    show(0,1);require(frame_width==256 && frame_height==224,"Graphics in the cropped area were not shown at once");
     require(near(geometry.aspect_ratio,full_aspect),"Geometry not restored");
-    std::puts("PASS AutoCrop graphics in the cropped area restore the full picture immediately");
+    std::puts("PASS AutoCrop graphics in the cropped area restore the full picture in the same frame");
 
-    show(1,2);const unsigned tiles=content_rows();require(frame_height==224 && tiles>=158 && tiles<=162,"Tile letterbox size");
-    show(1,40);require(frame_height==224,"Pixel-only border cropped before it was stable");
-    show(1,30);require(frame_height==tiles,"Tile letterbox not cropped");require_tight("Tile letterbox");
-    std::printf("PASS AutoCrop black-tile letterbox 256x224 -> %ux%u after the stability period\n",frame_width,frame_height);
+    show(0,30);frames=frames_to_crop(4,letterbox,256,true);
+    std::printf("PASS AutoCrop remembered letterbox cropped in the first frame it appears (%d)\n",frames);
+
+    show(0,31);frames=frames_to_crop(1,tiles,256,false);
+    require(frames>15 && frames<=34,"Pixel-only letterbox took "+std::to_string(frames)+" frames");require_tight("Tile letterbox");
+    std::printf("PASS AutoCrop black-tile letterbox 256x224 -> %ux%u in %d frames\n",frame_width,frame_height,frames);
 
     show(5,20);require(frame_height==tiles,"Black screen changed the crop");
     show(1,5);require(frame_height==tiles,"Crop lost after black screen");
-    std::puts("PASS AutoCrop black screens keep the current crop");
+    show(3,10);require(frame_height==tiles && content_rows()==24,"Dark screen moved the picture or hid graphics");
+    std::puts("PASS AutoCrop black and dark screens keep the crop without hiding graphics");
 
-    show(3,2);require(frame_width==256 && frame_height==224,"Sparse screen kept a crop");
-    show(3,90);require(frame_width==256 && frame_height==224,"Sparse screen was cropped");
+    show(0,31);show(3,90);require(frame_width==256 && frame_height==224,"Sparse screen was cropped");
     std::puts("PASS AutoCrop small content on black is never cropped");
 
-    show(2,2);const unsigned columns=content_columns();require(frame_width==256 && columns==224,"Side border size "+std::to_string(columns));
-    show(2,70);require(frame_width==columns && frame_height==224,"Side borders not cropped");require_tight("Side borders");
+    frames=frames_to_crop(2,224,columns,false);require(frames>15 && frames<=34,"Side borders took "+std::to_string(frames)+" frames");
+    require_tight("Side borders");
     require(geometry.base_width==224 && near(geometry.aspect_ratio,full_aspect*224.0/256.0),"Fit geometry for side borders");
     show(6,3);require(frame_width==448 && frame_height==224,"Hi-res side crop "+std::to_string(frame_width));require_tight("Hi-res side borders");
     std::printf("PASS AutoCrop side borders 256 -> %u, hi-res 512 -> 448\n",columns);
 
     show(7,2);require(frame_width==256,"Interlaced screen kept the side crop");
-    show(7,10);require(frame_height==448-2*(224-letterbox),"Interlaced letterbox crop "+std::to_string(frame_height));require_tight("Interlaced letterbox");
+    show(7,40);require(frame_height==448-2*(224-letterbox),"Interlaced letterbox crop "+std::to_string(frame_height));require_tight("Interlaced letterbox");
     std::printf("PASS AutoCrop interlaced letterbox 256x448 -> %ux%u\n",frame_width,frame_height);
 
     current.defaults["snes9x_auto_crop"]="stretch";current.updated=true;
-    show(4,12);require(frame_height==letterbox,"Stretch did not crop");
+    show(4,3);require(frame_height==letterbox,"Stretch did not crop");
     require(geometry.base_height==letterbox && near(geometry.aspect_ratio,full_aspect),"Stretch must keep the full-frame aspect");
-    show(2,3);require(frame_width==256,"Stretch kept side crop with graphics present");
-    show(2,70);require(frame_width==224,"Stretch side crop");
+    show(2,2);require(frame_width==256 && frame_height==224,"Stretch kept the letterbox crop with graphics present");
+    show(2,40);require(frame_width==224,"Stretch side crop");
     current.defaults["snes9x_blargg"]="composite";current.updated=true;
     show(2,2);require(frame_width==602-2*38 && frame_height==224,"Blargg side crop "+std::to_string(frame_width));
     std::printf("PASS AutoCrop stretch keeps aspect %.4f; Blargg NTSC 602 -> %u\n",geometry.aspect_ratio,frame_width);
@@ -189,12 +200,20 @@ static void autocrop_test(Core& core,Frontend& current)
     require(near(geometry.aspect_ratio,full_aspect) && geometry.base_width==256 && geometry.base_height==224,"Disabling did not restore geometry");
     current.defaults["snes9x_blargg"]="disabled";current.updated=true;core.retro_run();core.retro_unload_game();
 
-    current.defaults["snes9x_auto_crop"]="fit";current.defaults["snes9x_overscan"]="disabled";
-    require(core.retro_load_game(&game),"Overscan load");wram=static_cast<uint8_t*>(core.retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));
-    show(0,2);require(frame_height==239,"Uncropped overscan height");
-    show(0,10);require(frame_height==224 && frame_width==256,"Overscan padding not cropped "+std::to_string(frame_height));require_tight("Overscan padding");
+    std::FILE* file=std::fopen(memory_file,"r");require(file!=nullptr,"Layout memory file was not written");
+    char text[512]={};const size_t length=std::fread(text,1,sizeof(text)-1,file);std::fclose(file);
+    require(length>0 && std::strncmp(text,"snes9x-autocrop 1\n",18)==0,"Layout memory file header");
+    load("fit");show(0,5);
+    frames_to_crop(4,letterbox,256,true);show(0,31);frames_to_crop(1,tiles,256,true);show(0,31);frames_to_crop(2,224,columns,true);
+    core.retro_unload_game();
+    std::puts("PASS AutoCrop layouts saved per game and cropped in the first frame after reloading");
+
+    current.defaults["snes9x_overscan"]="disabled";load("fit");
+    show(0,1);require(frame_height==239,"Uncropped overscan height");
+    show(0,4);require(frame_height==224 && frame_width==256,"Overscan padding not cropped "+std::to_string(frame_height));require_tight("Overscan padding");
     std::puts("PASS AutoCrop removes the padding added when Crop Overscan is disabled");
     current.defaults["snes9x_overscan"]="enabled";current.defaults["snes9x_auto_crop"]="disabled";core.retro_unload_game();
+    std::remove(memory_file);
 }
 static unsigned gsu_counter(Core& core)
 {

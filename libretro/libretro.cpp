@@ -63,6 +63,7 @@ bool g_geometry_update = false;
 
 static autocrop_mode auto_crop_mode = AUTOCROP_DISABLED;
 static autocrop_state auto_crop;
+static char auto_crop_file[4096]; // per-game layout memory; empty when unknown
 static bool in_retro_run = false;
 
 int hires_blend = 0;
@@ -342,7 +343,7 @@ static void update_variables(bool load_region = false)
     if (new_crop_mode != auto_crop_mode)
     {
         auto_crop_mode = new_crop_mode;
-        autocrop_reset(&auto_crop);
+        autocrop_reset_tracking(&auto_crop);
         g_geometry_update = true;
     }
 
@@ -929,7 +930,7 @@ unsigned retro_api_version()
 void retro_reset()
 {
     S9xSoftReset();
-    autocrop_reset(&auto_crop);
+    autocrop_reset_tracking(&auto_crop);
     g_geometry_update = true;
 }
 
@@ -1195,6 +1196,20 @@ bool retro_load_game(const struct retro_game_info *game)
 
     update_variables(true);
     autocrop_reset(&auto_crop);
+    auto_crop_file[0] = '\0';
+    if (game->path)
+    {
+        char name[1024];
+        extract_basename(name, game->path, sizeof(name));
+        snprintf(auto_crop_file, sizeof(auto_crop_file), "%s%c%s.autocrop", retro_save_directory,
+#ifdef _WIN32
+            '\\',
+#else
+            '/',
+#endif
+            name);
+        autocrop_load_layouts(&auto_crop, auto_crop_file);
+    }
 
     if(game->data == NULL && game->size == 0 && game->path != NULL)
         rom_loaded = Memory.LoadROM(game->path);
@@ -1298,6 +1313,7 @@ bool retro_load_game_special(unsigned game_type, const struct retro_game_info *i
     init_descriptors();
     rom_loaded = false;
     autocrop_reset(&auto_crop);
+    auto_crop_file[0] = '\0';
 
     update_variables(true);
     switch (game_type)
@@ -2092,9 +2108,9 @@ static void auto_crop_process(int width, int height, int overscan_offset)
     frame.base_height = height / vscale;
     frame.hardware_rows = hardware_rows;
 
-    int band[AUTOCROP_SIDES];
+    int raw[AUTOCROP_SIDES], trusted[AUTOCROP_SIDES];
     bool hardware[AUTOCROP_SIDES];
-    if (autocrop_measure(frame, band, hardware) && autocrop_update(&auto_crop, band, hardware))
+    if (autocrop_measure(frame, raw, trusted, hardware) && autocrop_update(&auto_crop, raw, trusted, hardware))
     {
         // Same frame when possible, so the new crop and aspect arrive together.
         if (in_retro_run)
@@ -2102,6 +2118,8 @@ static void auto_crop_process(int width, int height, int overscan_offset)
         else
             g_geometry_update = true;
     }
+    if (auto_crop.layouts_changed && auto_crop_file[0])
+        autocrop_save_layouts(&auto_crop, auto_crop_file);
 }
 
 // Applies the current crop to an output frame of out_width x out_height.

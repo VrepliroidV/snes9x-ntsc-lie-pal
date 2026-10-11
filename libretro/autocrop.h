@@ -5,21 +5,25 @@
  * one SNES line vertically. The crop therefore survives switches between 256,
  * 512 and 1024 pixel widths and double-height output.
  *
- * A border band is a "hardware" band when every line in it was drawn with the
- * display off (forced blank, zero brightness or no main-screen layers). Those
- * are accepted quickly. Bands that are only dark pixels can be ordinary dark
- * artwork, so they must stay unchanged for longer and are ignored on screens
- * where too much of the picture is dark.
+ * Each frame gives two measurements per side:
+ * - raw: how far the dark border really goes. Graphics inside the cropped
+ *   area (raw smaller than the crop) restore that side in the same frame.
+ * - trusted: the part of the border that may be cropped. A "hardware" band,
+ *   made only of lines drawn with the display off (forced blank, zero
+ *   brightness or no main-screen layers), is trusted at once. Bands that are
+ *   only dark pixels can be dark artwork, so they are ignored on screens
+ *   where too much of the picture is dark.
  *
- * Content reaching a cropped area always restores that side in the same frame,
- * so a wrong guess never hides game graphics for more than the frames needed
- * to see them.
+ * A new trusted border is cropped once it stays unchanged for a few frames.
+ * Every confirmed layout is remembered for the game, and when the same layout
+ * appears again it is applied in the first frame, so the border is not seen.
  */
 #ifndef SNES9X_LIBRETRO_AUTOCROP_H
 #define SNES9X_LIBRETRO_AUTOCROP_H
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #if !defined(RED_SHIFT_BITS) || !defined(GREEN_SHIFT_BITS)
@@ -42,19 +46,28 @@ enum
     AUTOCROP_SIDES
 };
 
-/* Frames a new border must stay unchanged before it is cropped. */
-static const int AUTOCROP_HARDWARE_FRAMES = 6;
-static const int AUTOCROP_PIXEL_FRAMES = 60;
+/* Frames a new border must stay unchanged before it is cropped the first time. */
+static const int AUTOCROP_HARDWARE_FRAMES = 2;
+static const int AUTOCROP_PIXEL_FRAMES = 30;
+/* After graphics restore a side, remembered layouts wait this many frames,
+ * so a sprite crossing the border cannot make the picture jump every frame. */
+static const int AUTOCROP_MEMORY_COOLDOWN = 30;
+static const int AUTOCROP_MAX_LAYOUTS = 16;
 /* Thinner borders are left alone (base units). */
 static const int AUTOCROP_MIN_BAND = 2;
 /* Pixel-only bands are trusted only on screens at least this full (percent). */
 static const int AUTOCROP_MIN_FILL_PERCENT = 25;
+static const char AUTOCROP_FILE_HEADER[] = "snes9x-autocrop 1";
 
 struct autocrop_state
 {
     int applied[AUTOCROP_SIDES];
     int pending[AUTOCROP_SIDES];
     int stable[AUTOCROP_SIDES];
+    int since_expand;
+    int layout_count;
+    int layouts[AUTOCROP_MAX_LAYOUTS][AUTOCROP_SIDES];
+    bool layouts_changed;
 };
 
 struct autocrop_frame
@@ -67,9 +80,19 @@ struct autocrop_frame
     const uint8_t *hardware_rows;  /* per output row, non-zero for display-off lines */
 };
 
+/* Forgets the current crop but keeps the layouts learned for the game. */
+static inline void autocrop_reset_tracking(autocrop_state *state)
+{
+    memset(state->applied, 0, sizeof(state->applied));
+    memset(state->pending, 0, sizeof(state->pending));
+    memset(state->stable, 0, sizeof(state->stable));
+    state->since_expand = AUTOCROP_MEMORY_COOLDOWN;
+}
+
 static inline void autocrop_reset(autocrop_state *state)
 {
     memset(state, 0, sizeof(*state));
+    autocrop_reset_tracking(state);
 }
 
 static inline bool autocrop_dark(uint16_t pixel)
@@ -106,7 +129,8 @@ static inline bool autocrop_rows_hardware(const autocrop_frame &frame, int y0, i
 
 /* Measures the dark border of one frame. Returns false when the whole frame is
  * dark (fades, black screens): those frames must not change the crop. */
-static bool autocrop_measure(const autocrop_frame &frame, int band[AUTOCROP_SIDES], bool hardware[AUTOCROP_SIDES])
+static bool autocrop_measure(const autocrop_frame &frame, int raw[AUTOCROP_SIDES],
+                             int trusted[AUTOCROP_SIDES], bool hardware[AUTOCROP_SIDES])
 {
     int top = 0, bottom = 0, left = 0, right = 0;
 
@@ -124,26 +148,29 @@ static bool autocrop_measure(const autocrop_frame &frame, int band[AUTOCROP_SIDE
         right++;
 
     /* Round toward zero so a partial unit of content is never cropped. */
-    band[AUTOCROP_TOP]    = top / frame.vscale;
-    band[AUTOCROP_BOTTOM] = bottom / frame.vscale;
-    band[AUTOCROP_LEFT]   = left / frame.hscale;
-    band[AUTOCROP_RIGHT]  = right / frame.hscale;
+    raw[AUTOCROP_TOP]    = top / frame.vscale;
+    raw[AUTOCROP_BOTTOM] = bottom / frame.vscale;
+    raw[AUTOCROP_LEFT]   = left / frame.hscale;
+    raw[AUTOCROP_RIGHT]  = right / frame.hscale;
     hardware[AUTOCROP_TOP]    = autocrop_rows_hardware(frame, 0, top);
     hardware[AUTOCROP_BOTTOM] = autocrop_rows_hardware(frame, y1, frame.height);
     hardware[AUTOCROP_LEFT]   = false;
     hardware[AUTOCROP_RIGHT]  = false;
 
     for (int side = 0; side < AUTOCROP_SIDES; side++)
-        if (band[side] < AUTOCROP_MIN_BAND)
-            band[side] = 0;
+    {
+        if (raw[side] < AUTOCROP_MIN_BAND)
+            raw[side] = 0;
+        trusted[side] = raw[side];
+    }
 
     /* Hardware bands that leave less than half the picture are not borders. */
-    if (band[AUTOCROP_TOP] + band[AUTOCROP_BOTTOM] > frame.base_height / 2)
+    if (raw[AUTOCROP_TOP] + raw[AUTOCROP_BOTTOM] > frame.base_height / 2)
     {
         if (hardware[AUTOCROP_TOP])
-            band[AUTOCROP_TOP] = 0;
+            trusted[AUTOCROP_TOP] = 0;
         if (hardware[AUTOCROP_BOTTOM])
-            band[AUTOCROP_BOTTOM] = 0;
+            trusted[AUTOCROP_BOTTOM] = 0;
     }
 
     /* A pixel-only band wider than a quarter of the picture means a mostly
@@ -152,7 +179,7 @@ static bool autocrop_measure(const autocrop_frame &frame, int band[AUTOCROP_SIDE
     for (int side = 0; side < AUTOCROP_SIDES; side++)
     {
         const int limit = side < AUTOCROP_LEFT ? frame.base_height / 4 : frame.base_width / 4;
-        if (!hardware[side] && band[side] > limit)
+        if (!hardware[side] && raw[side] > limit)
             trust_pixels = false;
     }
 
@@ -176,49 +203,140 @@ static bool autocrop_measure(const autocrop_frame &frame, int band[AUTOCROP_SIDE
     if (!trust_pixels)
         for (int side = 0; side < AUTOCROP_SIDES; side++)
             if (!hardware[side])
-                band[side] = 0;
+                trusted[side] = 0;
 
     return true;
 }
 
+static inline bool autocrop_same(const int a[AUTOCROP_SIDES], const int b[AUTOCROP_SIDES])
+{
+    return !memcmp(a, b, sizeof(int) * AUTOCROP_SIDES);
+}
+
+/* Adds a layout to the game's memory; the oldest one makes room when full. */
+static void autocrop_remember(autocrop_state *state, const int layout[AUTOCROP_SIDES])
+{
+    bool any = false;
+    for (int side = 0; side < AUTOCROP_SIDES; side++)
+        any |= layout[side] != 0;
+    if (!any)
+        return;
+    for (int i = 0; i < state->layout_count; i++)
+        if (autocrop_same(state->layouts[i], layout))
+            return;
+    if (state->layout_count == AUTOCROP_MAX_LAYOUTS)
+    {
+        memmove(state->layouts[0], state->layouts[1], sizeof(state->layouts[0]) * (AUTOCROP_MAX_LAYOUTS - 1));
+        state->layout_count--;
+    }
+    memcpy(state->layouts[state->layout_count++], layout, sizeof(state->layouts[0]));
+    state->layouts_changed = true;
+}
+
+static void autocrop_apply(autocrop_state *state, const int layout[AUTOCROP_SIDES])
+{
+    memcpy(state->applied, layout, sizeof(state->applied));
+    memcpy(state->pending, layout, sizeof(state->pending));
+    memset(state->stable, 0, sizeof(state->stable));
+}
+
 /* Feeds one measured frame. Returns true when the applied crop changed. */
-static bool autocrop_update(autocrop_state *state, const int band[AUTOCROP_SIDES], const bool hardware[AUTOCROP_SIDES])
+static bool autocrop_update(autocrop_state *state, const int raw[AUTOCROP_SIDES],
+                            const int trusted[AUTOCROP_SIDES], const bool hardware[AUTOCROP_SIDES])
 {
     bool changed = false;
 
+    if (state->since_expand < AUTOCROP_MEMORY_COOLDOWN)
+        state->since_expand++;
+
+    /* Graphics inside the cropped area: show them right away. */
     for (int side = 0; side < AUTOCROP_SIDES; side++)
-    {
-        if (band[side] < state->applied[side])
+        if (raw[side] < state->applied[side])
         {
-            /* Content entered the cropped area: show it right away. */
-            state->applied[side] = band[side];
-            state->pending[side] = band[side];
+            state->applied[side] = raw[side];
+            state->pending[side] = raw[side];
             state->stable[side] = 0;
+            state->since_expand = 0;
             changed = true;
         }
-        else if (band[side] == state->applied[side])
-        {
-            state->pending[side] = band[side];
-            state->stable[side] = 0;
-        }
-        else
-        {
-            if (band[side] != state->pending[side])
+
+    /* A layout confirmed before is back: crop it in this same frame. */
+    if (state->since_expand >= AUTOCROP_MEMORY_COOLDOWN && !autocrop_same(trusted, state->applied))
+    {
+        bool grows = true;
+        for (int side = 0; side < AUTOCROP_SIDES; side++)
+            grows &= trusted[side] >= state->applied[side];
+        for (int i = 0; grows && i < state->layout_count; i++)
+            if (autocrop_same(state->layouts[i], trusted))
             {
-                state->pending[side] = band[side];
-                state->stable[side] = 0;
+                autocrop_apply(state, trusted);
+                return true;
             }
-            const int needed = hardware[side] ? AUTOCROP_HARDWARE_FRAMES : AUTOCROP_PIXEL_FRAMES;
-            if (++state->stable[side] >= needed)
-            {
-                state->applied[side] = band[side];
-                state->stable[side] = 0;
-                changed = true;
-            }
-        }
     }
 
+    /* New borders: crop them once they stay unchanged. */
+    bool confirmed = false;
+    for (int side = 0; side < AUTOCROP_SIDES; side++)
+    {
+        if (trusted[side] <= state->applied[side])
+        {
+            state->pending[side] = state->applied[side];
+            state->stable[side] = 0;
+            continue;
+        }
+        if (trusted[side] != state->pending[side])
+        {
+            state->pending[side] = trusted[side];
+            state->stable[side] = 0;
+        }
+        const int needed = hardware[side] ? AUTOCROP_HARDWARE_FRAMES : AUTOCROP_PIXEL_FRAMES;
+        if (++state->stable[side] >= needed)
+        {
+            state->applied[side] = trusted[side];
+            state->stable[side] = 0;
+            changed = confirmed = true;
+        }
+    }
+    if (confirmed)
+        autocrop_remember(state, state->applied);
+
     return changed;
+}
+
+/* Layout memory file: a header line, then "top bottom left right" per line. */
+static void autocrop_load_layouts(autocrop_state *state, const char *path)
+{
+    FILE *file = fopen(path, "r");
+    if (!file)
+        return;
+    char header[64];
+    if (fgets(header, sizeof(header), file) && !strncmp(header, AUTOCROP_FILE_HEADER, sizeof(AUTOCROP_FILE_HEADER) - 1))
+    {
+        int layout[AUTOCROP_SIDES];
+        while (state->layout_count < AUTOCROP_MAX_LAYOUTS &&
+               fscanf(file, "%d %d %d %d", &layout[0], &layout[1], &layout[2], &layout[3]) == AUTOCROP_SIDES)
+        {
+            bool valid = true;
+            for (int side = 0; side < AUTOCROP_SIDES; side++)
+                valid &= layout[side] >= 0 && layout[side] <= 128;
+            if (valid)
+                autocrop_remember(state, layout);
+        }
+    }
+    fclose(file);
+    state->layouts_changed = false;
+}
+
+static void autocrop_save_layouts(autocrop_state *state, const char *path)
+{
+    state->layouts_changed = false;
+    FILE *file = fopen(path, "w");
+    if (!file)
+        return;
+    fprintf(file, "%s\n", AUTOCROP_FILE_HEADER);
+    for (int i = 0; i < state->layout_count; i++)
+        fprintf(file, "%d %d %d %d\n", state->layouts[i][0], state->layouts[i][1], state->layouts[i][2], state->layouts[i][3]);
+    fclose(file);
 }
 
 #endif
