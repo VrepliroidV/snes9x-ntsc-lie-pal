@@ -2,9 +2,10 @@
 
 Núcleo **Snes9x Libretro** com uma quarta opção de região, **NTSC (Lie to PAL)**,
 para executar jogos com temporização NTSC enquanto o hardware emulado informa
-PAL ao jogo. A **Beta 2** acrescenta Mode 7 Hi-Res, MSU-1 Enhanced Audio e
-SuperFX Timing, e traz núcleos para **Android ARM64**, **Windows x64** e
-**Linux ARM64 (ROCKNIX)**.
+PAL ao jogo. A **Beta 2** acrescentou Mode 7 Hi-Res, MSU-1 Enhanced Audio e
+SuperFX Timing, com núcleos para **Android ARM64**, **Windows x64** e
+**Linux ARM64 (ROCKNIX)**. A **Beta 3** traz o **Auto Crop Black Borders**, que
+remove as bordas pretas tela por tela, e corrige o Reduce Slowdown no Android.
 
 A idéia inicialmente era rodar **Donkey Kong Country 2 (Europe)** em NTSC, mas por conter muitos códigos anticopia em sua programação o jogo não se permitia avançar, e em alguns casos o emulador podia travar.
 Agora com o modo NTSC lie to PAL, o jogo acredita que está rodando em PAL mas na verdade está com os Timmings do modo NTSC.
@@ -27,19 +28,19 @@ Os builds adicionais são núcleos Libretro para **Windows x64** e **Linux ARM64
 As versões públicas e seus arquivos ficam em
 [Releases do projeto](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases).
 A versão atual é a
-**[v1.0.0-beta.2 — Beta 2](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.2)**:
+**[v1.0.0-beta.3 — Beta 3](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.3)**,
+com um ZIP por plataforma:
 
-| Arquivo | Conteúdo |
-| --- | --- |
-| `snes9x-ntsc-lie-pal-v1.0.0-beta.2-android-windows-rocknix.zip` | Os três núcleos em pastas separadas, `LEIA-ME.txt`, licenças e relatórios de validação |
-| `snes9x_libretro_android.so` | Núcleo Android ARM64 (RetroArch Android) |
-| `snes9x_libretro.dll` | Núcleo Windows x64 (RetroArch Windows) |
-| `snes9x_libretro.so` | Núcleo Linux ARM64 para ROCKNIX |
-| `SHA256SUMS` | Hashes dos arquivos acima |
+| Plataforma | Núcleo no ZIP | Acompanha |
+| --- | --- | --- |
+| Android ARM64 | `snes9x_libretro_android.so` | Licenças, `SHA256SUMS`, metadados do build e validação ELF |
+| Windows x64 | `snes9x_libretro.dll` | Licenças, `SHA256SUMS` e relatório PE |
+| Linux ARM64 / ROCKNIX | `snes9x_libretro.so` | Licenças, `SHA256SUMS`, relatório ELF e log dos testes de recursos |
 
-Use apenas o núcleo da sua plataforma. A
-[Beta 1](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.1)
-continua disponível, com o núcleo Android que traz apenas a opção NTSC (Lie to PAL).
+Use apenas o núcleo da sua plataforma. As versões anteriores continuam
+disponíveis: a [Beta 2](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.2),
+sem Auto Crop, e a [Beta 1](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.1),
+só para Android e só com a opção NTSC (Lie to PAL).
 
 ## Por que uma opção adicional de região?
 
@@ -185,6 +186,9 @@ inteiras.
 - Linhas desenhadas com a tela desligada (forced blank, brilho zero ou sem camadas)
   são reconhecidas pelo próprio núcleo e cortadas após 2 quadros, desde que a
   imagem entre elas não seja quase toda preta.
+- Barras cinza-escuras de uma cor só (até o nível 6 de 31, como em Batman
+  Returns) também contam como borda, e continuam sendo borda quando o jogo muda
+  o brilho da tela. Essa cor não conta como imagem nas verificações abaixo.
 - Bordas que são apenas pixels pretos, como tiles pretos ou janelas, só são
   cortadas quando a tela parece gameplay: a imagem ocupa pelo menos 40% da tela,
   cada borda tem no máximo 1/4 da imagem e o lado de dentro da borda é uma linha
@@ -226,6 +230,30 @@ modo de região. Estados devem ser criados e restaurados no mesmo modo: estados
 PAL podem conter temporizações incompatíveis com uma sessão NTSC.
 
 ## Resultados de validação
+
+### Beta 3
+
+Os testes automatizados usam uma ROM original gerada com 16 telas, que o teste
+troca durante a execução. Eles cobrem:
+
+- letterbox de linhas com a tela desligada, de tiles pretos e de barras
+  cinza-escuras, inclusive com mudança de brilho;
+- colunas laterais, hi-res, entrelaçado, filtro Blargg e Crop Overscan desativado;
+- telas pretas e escuras, logos paradas, com contorno irregular, pequenas, entre
+  barras e sobre fundo cinza;
+- memória por jogo: gravação após 5 s, corte no 1º quadro depois de recarregar e
+  esquecimento de enquadramentos desmentidos;
+- Reduce Slowdown: trabalho da CPU em 4 quadros com Disabled, Light, Compatible e
+  Max (16494, 20994, 26141 e 41988).
+
+Cada proteção contra logos foi conferida desligando-a e vendo o teste
+correspondente falhar.
+
+O responsável pelo projeto testou o Auto Crop no Android e no RG DS com Road
+Runner's Death Valley Rally, Power Rangers, Final Fight 3, Ninja Warriors,
+Ultimate Mortal Kombat 3, The Mask, Strike Gunner STG, Push-Over e Batman
+Returns. Também testou o Reduce Slowdown em Max no Final Fight 3, que ficou sem
+slowdown, como no núcleo oficial.
 
 ### Beta 2
 
