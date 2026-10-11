@@ -183,16 +183,22 @@ inteiras.
 - **Fit (keep proportions):** amplia a área do jogo sem deformar os pixels.
 - **Stretch (fill frame):** estica a área do jogo até preencher o quadro original.
 - Linhas desenhadas com a tela desligada (forced blank, brilho zero ou sem camadas)
-  são reconhecidas pelo próprio núcleo e cortadas após 2 quadros.
-- Bordas que são apenas pixels pretos, como tiles pretos ou janelas, precisam
-  ficar iguais por 30 quadros (cerca de meio segundo) na primeira vez. Elas são
-  ignoradas em telas com muito preto, como texto sobre fundo preto.
-- Cada enquadramento confirmado fica memorizado para o jogo. Quando a mesma borda
-  aparece de novo, o corte é aplicado no primeiro quadro, sem a borda aparecer.
-  A memória fica no arquivo `<nome da ROM>.autocrop`, na pasta de saves do
-  RetroArch; apague o arquivo para o jogo aprender de novo.
+  são reconhecidas pelo próprio núcleo e cortadas após 2 quadros, desde que a
+  imagem entre elas não seja quase toda preta.
+- Bordas que são apenas pixels pretos, como tiles pretos ou janelas, só são
+  cortadas quando a tela parece gameplay: a imagem ocupa pelo menos 40% da tela,
+  cada borda tem no máximo 1/4 da imagem e o lado de dentro da borda é uma linha
+  contínua de gráficos, não o contorno de um objeto. Na primeira vez, a borda
+  precisa ficar igual por 1,5 segundo enquanto a imagem se mexe. Por isso telas de
+  logo, texto sobre fundo preto e imagens paradas não são cortadas.
+- Enquadramentos que ficam 5 segundos na tela são memorizados para o jogo e, dali
+  em diante, cortados no primeiro quadro em que aparecem, inclusive em telas
+  paradas como a pausa. Um enquadramento memorizado que é desmentido duas vezes
+  seguidas (gráficos aparecem na área cortada logo depois de aplicado) é
+  esquecido. A memória fica no arquivo `<nome da ROM>.autocrop`, na pasta de saves
+  do RetroArch; apague o arquivo para o jogo aprender de novo.
 - Se algum gráfico aparecer na área cortada, aquele lado volta no mesmo quadro.
-  Telas pretas e fades mantêm o corte atual, sem a imagem se mexer.
+  Telas pretas, fades e telas escuras mantêm o corte atual, sem a imagem se mexer.
 - Funciona com hi-res, Mode 7 Hi-Res, entrelaçado, filtro Blargg e com Crop
   Overscan desativado. A mira das pistolas de luz acompanha o corte.
 

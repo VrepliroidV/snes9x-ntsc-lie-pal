@@ -2110,7 +2110,8 @@ static void auto_crop_process(int width, int height, int overscan_offset)
 
     int raw[AUTOCROP_SIDES], trusted[AUTOCROP_SIDES];
     bool hardware[AUTOCROP_SIDES];
-    if (autocrop_measure(frame, raw, trusted, hardware) && autocrop_update(&auto_crop, raw, trusted, hardware))
+    if (autocrop_measure(frame, raw, trusted, hardware) &&
+        autocrop_update(&auto_crop, raw, trusted, hardware, autocrop_motion(&auto_crop, frame)))
     {
         // Same frame when possible, so the new crop and aspect arrive together.
         if (in_retro_run)
