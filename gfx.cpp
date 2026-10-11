@@ -445,6 +445,12 @@ void S9xUpdateScreen (void)
 	if ((GFX.EndY = IPPU.CurrentLine - 1) >= PPU.ScreenHeight)
 		GFX.EndY = PPU.ScreenHeight - 1;
 
+	{
+		const uint8 blank = PPU.ForcedBlanking || PPU.Brightness == 0 || !(Memory.FillRAM[0x212c] & 0x1f);
+		for (uint32 l = GFX.StartY; l <= GFX.EndY && l < SNES_HEIGHT_EXTENDED; l++)
+			GFX.LineBlank[l] = blank;
+	}
+
 	if (!PPU.ForcedBlanking)
 	{
 		// If force blank, may as well completely skip all this. We only did

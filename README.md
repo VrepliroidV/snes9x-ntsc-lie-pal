@@ -166,12 +166,46 @@ Depois de copiar, carregue o núcleo e o jogo novamente.
 | System | Console Region | Auto, NTSC, PAL, **NTSC (Lie to PAL)** |
 | Video | Mode 7 Hi-Res | disabled, 2x, 4x, 2x (H+V), 4x (H+V) |
 | Video | Mode 7 Hi-Res Filtering | disabled, Stable, Smooth |
+| Video | Auto Crop Black Borders | disabled (padrão), Fit (keep proportions), Stretch (fill frame) |
 | Audio | MSU-1 Enhanced Audio | enabled (padrão), disabled; recarregue o conteúdo após mudar |
 | Emulation | SuperFX Timing | Cycle Accurate (padrão), Legacy |
 
 A localização e os nomes das categorias podem depender do frontend. O MSU-1
 Enhanced Audio não cria trilhas: o jogo precisa do patch e dos arquivos MSU-1
 compatíveis.
+
+### Auto Crop Black Borders
+
+Detecta bordas pretas ao redor da imagem do jogo e mostra só a área do jogo. Cada
+tela é avaliada separadamente, então telas sem borda no mesmo jogo continuam
+inteiras.
+
+- **Fit (keep proportions):** amplia a área do jogo sem deformar os pixels.
+- **Stretch (fill frame):** estica a área do jogo até preencher o quadro original.
+- Linhas desenhadas com a tela desligada (forced blank, brilho zero ou sem camadas)
+  são reconhecidas pelo próprio núcleo e cortadas após 2 quadros, desde que a
+  imagem entre elas não seja quase toda preta.
+- Bordas que são apenas pixels pretos, como tiles pretos ou janelas, só são
+  cortadas quando a tela parece gameplay: a imagem ocupa pelo menos 40% da tela,
+  cada borda tem no máximo 1/4 da imagem e o lado de dentro da borda é uma linha
+  contínua de gráficos, não o contorno de um objeto. Na primeira vez, a borda
+  precisa ficar igual por 1,5 segundo enquanto a imagem se mexe, ou por 8 segundos
+  com a imagem parada (jogo pausado ou personagem parado). Por isso telas de logo
+  e texto sobre fundo preto não são cortadas.
+- Enquadramentos que ficam 5 segundos na tela são memorizados para o jogo e, dali
+  em diante, cortados no primeiro quadro em que aparecem, inclusive em telas
+  paradas como a pausa. Um enquadramento memorizado que é desmentido duas vezes
+  seguidas (gráficos aparecem na área cortada logo depois de aplicado) é
+  esquecido. A memória fica no arquivo `<nome da ROM>.autocrop`, na pasta de saves
+  do RetroArch; apague o arquivo para o jogo aprender de novo.
+- Se algum gráfico aparecer na área cortada, aquele lado volta no mesmo quadro.
+  Telas pretas, fades e telas escuras mantêm o corte atual, sem a imagem se mexer.
+- Funciona com hi-res, Mode 7 Hi-Res, entrelaçado, filtro Blargg e com Crop
+  Overscan desativado. A mira das pistolas de luz acompanha o corte.
+
+No RetroArch, deixe a proporção de tela (**Aspect Ratio**, nas opções de escala
+de vídeo) em **Core provided**. Com outra proporção fixa, o próprio RetroArch
+estica a imagem cortada.
 
 ### Ativar NTSC (Lie to PAL)
 
