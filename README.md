@@ -185,6 +185,9 @@ inteiras.
 - Linhas desenhadas com a tela desligada (forced blank, brilho zero ou sem camadas)
   são reconhecidas pelo próprio núcleo e cortadas após 2 quadros, desde que a
   imagem entre elas não seja quase toda preta.
+- Barras cinza-escuras de uma cor só (até o nível 6 de 31, como em Batman
+  Returns) também contam como borda, e continuam sendo borda quando o jogo muda
+  o brilho da tela. Essa cor não conta como imagem nas verificações abaixo.
 - Bordas que são apenas pixels pretos, como tiles pretos ou janelas, só são
   cortadas quando a tela parece gameplay: a imagem ocupa pelo menos 40% da tela,
   cada borda tem no máximo 1/4 da imagem e o lado de dentro da borda é uma linha

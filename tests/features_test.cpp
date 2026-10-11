@@ -74,6 +74,9 @@ static std::vector<uint8_t> superfx_rom()
 // 10 animated medium block on black (picture mostly dark)
 // 11 forced-blank letterbox around a small block (mostly dark between the bars)
 // 12 screen 1 standing still (a paused game)
+// 13 screen 1 with dark grey bars (backdrop level 3 of 31, like Batman Returns)
+// 14 screen 13 at brightness 12, where the grey bars turn dark
+// 15 screen 10 on a dark grey background (logo on grey)
 static std::vector<uint8_t> autocrop_rom()
 {
     auto rom=diagnostic_rom(false);size_t pc=0;
@@ -99,14 +102,16 @@ static std::vector<uint8_t> autocrop_rom()
     map(6,[](unsigned x,unsigned y){return y>=6 && y<22 && x>=6 && x<26;});
     const uint8_t hdma[]={0x20,0x80,0x7f,0x0f,0x21,0x0f,0x01,0x80,0x00}; // black lines 0-31 and from 192
     std::memcpy(rom.data()+0x6000,hdma,sizeof(hdma));
-    //                          0    1    2    3    4    5    6    7    8    9   10   11   12
-    const uint8_t maps[]   ={   0,   1,   2,   3,   0,   0,   2,   0,   4,   5,   6,   3,   1};
-    const uint8_t hdmaen[] ={   0,   0,   0,   0,   2,   0,   0,   2,   0,   0,   0,   2,   0};
-    const uint8_t inidisp[]={0x0f,0x0f,0x0f,0x0f,0x0f,0x80,0x0f,0x0f,0x0f,0x0f,0x0f,0x0f,0x0f};
-    const uint8_t setini[] ={   0,   0,   0,   0,   0,   0,   8,   1,   0,   0,   0,   0,   0};
-    const uint8_t animate[]={   1,   1,   1,   1,   1,   0,   1,   1,   0,   1,   1,   1,   0};
+    //                          0    1    2    3    4    5    6    7    8    9   10   11   12   13   14   15
+    const uint8_t maps[]   ={   0,   1,   2,   3,   0,   0,   2,   0,   4,   5,   6,   3,   1,   1,   1,   6};
+    const uint8_t hdmaen[] ={   0,   0,   0,   0,   2,   0,   0,   2,   0,   0,   0,   2,   0,   0,   0,   0};
+    const uint8_t inidisp[]={0x0f,0x0f,0x0f,0x0f,0x0f,0x80,0x0f,0x0f,0x0f,0x0f,0x0f,0x0f,0x0f,0x0f,0x0c,0x0f};
+    const uint8_t setini[] ={   0,   0,   0,   0,   0,   0,   8,   1,   0,   0,   0,   0,   0,   0,   0,   0};
+    const uint8_t animate[]={   1,   1,   1,   1,   1,   0,   1,   1,   0,   1,   1,   1,   0,   1,   1,   1};
+    const uint16_t grey=3|(3<<5)|(3<<10);
     for(unsigned i=0;i<sizeof(maps);i++)
-    {rom[0x6100+i]=(uint8_t)(0x04+maps[i]*4);rom[0x6110+i]=hdmaen[i];rom[0x6120+i]=inidisp[i];rom[0x6130+i]=setini[i];rom[0x6140+i]=animate[i];}
+    {rom[0x6100+i]=(uint8_t)(0x04+maps[i]*4);rom[0x6110+i]=hdmaen[i];rom[0x6120+i]=inidisp[i];rom[0x6130+i]=setini[i];rom[0x6140+i]=animate[i];
+     const uint16_t backdrop=i>=13?grey:0;rom[0x6150+i]=backdrop&255;rom[0x6160+i]=backdrop>>8;}
     const uint16_t colours[]={0x03e0,0x7c00,0x001f,0x7fff,0x03ff,0x7c1f,0x7fe0,0x4210};
     for(unsigned i=0;i<8;i++){rom[0x6200+i*2]=colours[i]&255;rom[0x6201+i*2]=colours[i]>>8;}
 
@@ -123,6 +128,7 @@ static std::vector<uint8_t> autocrop_rom()
     emit({0x85,0x41,0xaa});                                      // STA $41; TAX
     for(auto reg:{std::make_pair(0x6100u,0x2107u),std::make_pair(0x6110u,0x420cu),std::make_pair(0x6120u,0x2100u),std::make_pair(0x6130u,0x2133u)})
     {absolute_x(0xbd,reg.first);emit({0x8d,(uint8_t)reg.second,(uint8_t)(reg.second>>8)});}
+    write(0x2121,0);absolute_x(0xbd,0x6150);emit({0x8d,0x22,0x21});absolute_x(0xbd,0x6160);emit({0x8d,0x22,0x21}); // backdrop colour
     rom[same+1]=(uint8_t)(pc-(same+2));
     emit({0xa6,0x41});absolute_x(0xbd,0x6140);const size_t still=pc;emit({0xf0,0}); // LDX $41; LDA animate,X; BEQ
     emit({0xe6,0x42});write(0x2121,1);emit({0xa5,0x42,0x29,0x07,0x0a,0xaa});        // INC $42; CGADD=1; X=(n&7)*2
@@ -193,6 +199,11 @@ static void autocrop_test(Core& core,Frontend& current)
     show(0,31);frames=frames_to_crop(4,letterbox,256,true);show(4,70);
     std::printf("PASS AutoCrop layout saved after 5 s on screen and then cropped in the first frame (%d)\n",frames);
 
+    show(0,31);frames=frames_to_crop(13,tiles,256,false);require(frames>85 && frames<=95,"Grey bars took "+std::to_string(frames)+" frames");
+    show(14,40);require(frame_height==tiles,"Grey bars crop undone when the brightness dropped");
+    show(13,40);require(frame_height==tiles,"Grey bars crop undone when the brightness returned");
+    show(0,31);never_cropped(15,200,"Animated logo on a dark grey screen");
+    std::printf("PASS AutoCrop dark grey bars cropped in %d frames and kept through brightness changes; logo on grey left alone\n",frames);
     show(0,31);never_cropped(12,120,"Unknown border on a still screen");
     frames=120+frames_to_crop(12,tiles,256,false);require(frames>=475 && frames<=485,"Still border took "+std::to_string(frames)+" frames");
     std::printf("PASS AutoCrop unknown border on a still screen cropped after %d frames (8 s)\n",frames);

@@ -68,6 +68,9 @@ static const int AUTOCROP_MEMORY_COOLDOWN = 30;
 static const int AUTOCROP_STRIKE_FRAMES = 60;
 static const int AUTOCROP_MAX_STRIKES = 2;
 static const int AUTOCROP_MAX_LAYOUTS = 16;
+/* Lines of one single colour up to this level (of 31) are borders too:
+ * dark grey bars instead of black ones. */
+static const int AUTOCROP_DIM_LEVEL = 6;
 /* Thinner borders are left alone (base units). */
 static const int AUTOCROP_MIN_BAND = 2;
 /* Rows or columns next to a band checked for a solid edge (base units). */
@@ -148,20 +151,42 @@ static inline bool autocrop_dark(uint16_t pixel)
            (pixel & 0x1f) <= 2;
 }
 
-static inline bool autocrop_row_dark(const autocrop_frame &frame, int y)
+static inline bool autocrop_dim(uint16_t pixel)
+{
+    return ((pixel >> RED_SHIFT_BITS) & 0x1f) <= AUTOCROP_DIM_LEVEL &&
+           ((pixel >> GREEN_SHIFT_BITS) & 0x1f) <= AUTOCROP_DIM_LEVEL &&
+           (pixel & 0x1f) <= AUTOCROP_DIM_LEVEL;
+}
+
+/* A border line is all dark, or all one dim colour (a dark grey bar keeps the
+ * same colour when the game changes brightness, unlike its dark parts). */
+static inline bool autocrop_row_border(const autocrop_frame &frame, int y)
 {
     const uint16_t *row = frame.pixels + (ptrdiff_t)y * frame.pitch;
+    const uint16_t first = row[0];
+    bool dark = true, uniform = autocrop_dim(first);
     for (int x = 0; x < frame.width; x++)
-        if (!autocrop_dark(row[x]))
+    {
+        dark = dark && autocrop_dark(row[x]);
+        uniform = uniform && row[x] == first;
+        if (!dark && !uniform)
             return false;
+    }
     return true;
 }
 
-static inline bool autocrop_column_dark(const autocrop_frame &frame, int x, int y0, int y1)
+static inline bool autocrop_column_border(const autocrop_frame &frame, int x, int y0, int y1)
 {
+    const uint16_t first = frame.pixels[(ptrdiff_t)y0 * frame.pitch + x];
+    bool dark = true, uniform = autocrop_dim(first);
     for (int y = y0; y < y1; y++)
-        if (!autocrop_dark(frame.pixels[(ptrdiff_t)y * frame.pitch + x]))
+    {
+        const uint16_t pixel = frame.pixels[(ptrdiff_t)y * frame.pitch + x];
+        dark = dark && autocrop_dark(pixel);
+        uniform = uniform && pixel == first;
+        if (!dark && !uniform)
             return false;
+    }
     return true;
 }
 
@@ -173,8 +198,9 @@ static inline bool autocrop_rows_hardware(const autocrop_frame &frame, int y0, i
     return true;
 }
 
-/* Percentage of non-dark samples in a rectangle of output pixels. */
-static int autocrop_fill(const autocrop_frame &frame, int x0, int x1, int y0, int y1, int xstep, int ystep)
+/* Percentage of samples in a rectangle of output pixels that are neither dark
+ * nor the border colour (ignore, or -1 for none). */
+static int autocrop_fill(const autocrop_frame &frame, int x0, int x1, int y0, int y1, int xstep, int ystep, int ignore)
 {
     long content = 0, samples = 0;
     for (int y = y0; y < y1; y += ystep)
@@ -183,7 +209,7 @@ static int autocrop_fill(const autocrop_frame &frame, int x0, int x1, int y0, in
         for (int x = x0; x < x1; x += xstep)
         {
             samples++;
-            content += !autocrop_dark(row[x]);
+            content += !autocrop_dark(row[x]) && row[x] != ignore;
         }
     }
     return samples ? (int)(content * 100 / samples) : 0;
@@ -199,19 +225,31 @@ static bool autocrop_measure(const autocrop_frame &frame, int raw[AUTOCROP_SIDES
 {
     int top = 0, bottom = 0, left = 0, right = 0;
 
-    while (top < frame.height && autocrop_row_dark(frame, top))
+    while (top < frame.height && autocrop_row_border(frame, top))
         top++;
     if (top == frame.height)
         return false;
-    while (autocrop_row_dark(frame, frame.height - 1 - bottom))
+    while (autocrop_row_border(frame, frame.height - 1 - bottom))
         bottom++;
 
     const int y0 = top, y1 = frame.height - bottom;
-    while (autocrop_column_dark(frame, left, y0, y1))
+    while (autocrop_column_border(frame, left, y0, y1))
         left++;
-    while (autocrop_column_dark(frame, frame.width - 1 - right, y0, y1))
+    while (autocrop_column_border(frame, frame.width - 1 - right, y0, y1))
         right++;
     const int x0 = left, x1 = frame.width - right;
+
+    /* A dark grey border colour does not count as picture in the fill checks,
+     * so a logo on a grey background is treated like one on black. */
+    int ignore = -1;
+    {
+        const uint16_t *corner = top ? frame.pixels :
+                                 bottom ? frame.pixels + (ptrdiff_t)(frame.height - 1) * frame.pitch :
+                                 left ? frame.pixels + (ptrdiff_t)y0 * frame.pitch :
+                                 right ? frame.pixels + (ptrdiff_t)y0 * frame.pitch + frame.width - 1 : NULL;
+        if (corner && !autocrop_dark(*corner) && autocrop_dim(*corner))
+            ignore = *corner;
+    }
 
     /* Display-off lines at the outer edge of the top and bottom bands. */
     int hardware_top = 0, hardware_bottom = 0;
@@ -239,7 +277,7 @@ static bool autocrop_measure(const autocrop_frame &frame, int raw[AUTOCROP_SIDES
     /* The picture between the display-off lines must not be mostly dark (a
      * logo between black bars), and the bars must leave half the height. */
     const int screen_fill = autocrop_fill(frame, 0, frame.width, hardware_top, frame.height - hardware_bottom,
-                                          4 * frame.hscale, 4 * frame.vscale);
+                                          4 * frame.hscale, 4 * frame.vscale, ignore);
     const bool trust_hardware = screen_fill >= AUTOCROP_MIN_HARDWARE_FILL_PERCENT &&
         hardware_band[AUTOCROP_TOP] + hardware_band[AUTOCROP_BOTTOM] <= frame.base_height / 2;
 
@@ -257,7 +295,7 @@ static bool autocrop_measure(const autocrop_frame &frame, int raw[AUTOCROP_SIDES
     }
 
     if (any_pixel_band && trust_pixels)
-        trust_pixels = autocrop_fill(frame, x0, x1, y0, y1, 4 * frame.hscale, 4 * frame.vscale) >= AUTOCROP_MIN_CONTENT_FILL_PERCENT;
+        trust_pixels = autocrop_fill(frame, x0, x1, y0, y1, 4 * frame.hscale, 4 * frame.vscale, ignore) >= AUTOCROP_MIN_CONTENT_FILL_PERCENT;
 
     /* The edge next to each pixel-only band must be a solid line of graphics,
      * not the outline of a logo floating on black. */
@@ -270,13 +308,13 @@ static bool autocrop_measure(const autocrop_frame &frame, int raw[AUTOCROP_SIDES
                 continue;
             int edge;
             if (side == AUTOCROP_TOP)
-                edge = autocrop_fill(frame, x0, x1, y0, autocrop_min(y0 + rows, y1), frame.hscale, frame.vscale);
+                edge = autocrop_fill(frame, x0, x1, y0, autocrop_min(y0 + rows, y1), frame.hscale, frame.vscale, ignore);
             else if (side == AUTOCROP_BOTTOM)
-                edge = autocrop_fill(frame, x0, x1, autocrop_max(y1 - rows, y0), y1, frame.hscale, frame.vscale);
+                edge = autocrop_fill(frame, x0, x1, autocrop_max(y1 - rows, y0), y1, frame.hscale, frame.vscale, ignore);
             else if (side == AUTOCROP_LEFT)
-                edge = autocrop_fill(frame, x0, autocrop_min(x0 + columns, x1), y0, y1, frame.hscale, frame.vscale);
+                edge = autocrop_fill(frame, x0, autocrop_min(x0 + columns, x1), y0, y1, frame.hscale, frame.vscale, ignore);
             else
-                edge = autocrop_fill(frame, autocrop_max(x1 - columns, x0), x1, y0, y1, frame.hscale, frame.vscale);
+                edge = autocrop_fill(frame, autocrop_max(x1 - columns, x0), x1, y0, y1, frame.hscale, frame.vscale, ignore);
             trust_pixels = edge >= AUTOCROP_MIN_EDGE_PERCENT;
         }
     }
