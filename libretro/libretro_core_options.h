@@ -219,12 +219,24 @@ struct retro_core_option_definition option_defs_us[] = {
    {
       "snes9x_overclock_cycles",
       "Reduce Slowdown (Hack, Unsafe)",
-      "Overclock SNES CPU. May cause games to crash! Use 'Light' for shorter loading times, 'Compatible' for most games exhibiting slowdown and 'Max' only if absolutely required (Gradius 3, Super R-type...).",
+      "Overclock SNES CPU. May cause games to crash! Use 'Light' for shorter loading times, 'Compatible' for most games exhibiting slowdown and 'Max' only if absolutely required (Gradius 3, Super R-type...). 'Auto' overclocks only while the game slows down, one level at a time up to Max, and not while the screen is dark or fading, while loading or while music is sent to the sound chip: the moments where overclocked games tend to hang.",
       {
          { "disabled",   NULL },
          { "light",      "Light" },
          { "compatible", "Compatible" },
          { "max",        "Max" },
+         { "auto",       "Auto" },
+         { NULL, NULL},
+      },
+      "disabled"
+   },
+   {
+      "snes9x_auto_overclock_indicator",
+      "Show Auto Overclock",
+      "With Reduce Slowdown set to 'Auto', show the level in use and how much of the frame the CPU was busy, at the top-left of the picture.",
+      {
+         { "disabled", NULL },
+         { "enabled",  NULL },
          { NULL, NULL},
       },
       "disabled"
@@ -825,6 +837,7 @@ static const char *snes9x_option_category(const char *key)
 
    if (!strcmp(key, "snes9x_overclock_superfx") ||
        !strcmp(key, "snes9x_overclock_cycles") ||
+       !strcmp(key, "snes9x_auto_overclock_indicator") ||
        !strcmp(key, "snes9x_randomize_memory") ||
        !strcmp(key, "snes9x_block_invalid_vram_access") ||
        !strcmp(key, "snes9x_superfx_timing"))

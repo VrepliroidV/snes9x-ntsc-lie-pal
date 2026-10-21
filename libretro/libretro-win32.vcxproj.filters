@@ -39,6 +39,9 @@
     <ClInclude Include="..\cpuaddr.h">
       <Filter>s9x-source</Filter>
     </ClInclude>
+    <ClInclude Include="..\autooc.h">
+      <Filter>s9x-source</Filter>
+    </ClInclude>
     <ClInclude Include="..\cpuexec.h">
       <Filter>s9x-source</Filter>
     </ClInclude>
@@ -216,6 +219,9 @@
       <Filter>s9x-source</Filter>
     </ClCompile>
     <ClCompile Include="..\cpu.cpp">
+      <Filter>s9x-source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\autooc.cpp">
       <Filter>s9x-source</Filter>
     </ClCompile>
     <ClCompile Include="..\cpuexec.cpp">

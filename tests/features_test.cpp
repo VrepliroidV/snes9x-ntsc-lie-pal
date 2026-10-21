@@ -292,6 +292,54 @@ static unsigned busy_count(Core& core,Frontend& current,const char* overclock)
     const unsigned count=((w[0x20]|(unsigned(w[0x21])<<8))-start)&0xffff;core.retro_unload_game();
     current.defaults["snes9x_overclock_cycles"]="disabled";return count;
 }
+// Each frame: INIDISP from $06, a DEX/BNE loop $02-$03 turns long, then wait
+// for the NMI handler's flag ($00) and count one finished frame in $0C-$0D.
+static std::vector<uint8_t> slowdown_rom()
+{
+    auto rom=diagnostic_rom(false);
+    const uint8_t code[]={
+        0x78,0x18,0xfb,0xc2,0x10,0xe2,0x20,0xa2,0xff,0x1f,0x9a,         // SEI; native; 16-bit X; stack
+        0xa9,0x0f,0x8d,0x00,0x21,0xa9,0x81,0x8d,0x00,0x42,              // display on; NMI on
+        0xa5,0x06,0x8d,0x00,0x21,                                       // $8015: INIDISP = $06
+        0xa6,0x02,0xca,0xd0,0xfd,                                       // LDX $02; DEX; BNE
+        0xa5,0x00,0xf0,0xfc,0x64,0x00,                                  // wait for the flag; clear it
+        0xe6,0x0c,0xd0,0x02,0xe6,0x0d,0x80,0xe8,                        // count; BRA $8015
+        0x48,0xa9,0x01,0x85,0x00,0xad,0x10,0x42,0x68,0x40};            // $802D NMI: flag = 1
+    std::memcpy(rom.data(),code,sizeof(code));
+    rom[0x7fea]=0x2d;rom[0x7feb]=0x80;                                  // native NMI vector
+    uint32_t checksum=0x01fe;
+    for(size_t a=0;a<rom.size();a++)if(a<0x7fdc||a>0x7fdf)checksum+=rom[a];
+    const uint16_t sum=(uint16_t)checksum,complement=(uint16_t)~sum;
+    rom[0x7fdc]=complement&255;rom[0x7fdd]=complement>>8;rom[0x7fde]=sum&255;rom[0x7fdf]=sum>>8;
+    return rom;
+}
+// Frames the game finished during the last 120 of `frames`, with a loop of
+// `load` frames of work (DEX + BNE: 36 master cycles a turn) after 240 light
+// frames (a title screen: the game is seen waiting before it gets busy).
+static unsigned finished_frames(Core& core,Frontend& current,const char* overclock,double load,uint8_t inidisp,unsigned frames,bool indicator=false)
+{
+    current.defaults["snes9x_overclock_cycles"]=overclock;
+    current.defaults["snes9x_auto_overclock_indicator"]=indicator?"enabled":"disabled";
+    const auto rom=slowdown_rom();retro_game_info game={"feature-autooc.sfc",rom.data(),rom.size(),nullptr};
+    require(core.retro_load_game(&game),"Auto overclock load");
+    auto* w=static_cast<uint8_t*>(core.retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));
+    const unsigned turns=(unsigned)(load*262*1364/36),title=(unsigned)(0.3*262*1364/36);
+    unsigned start=0;
+    for(unsigned i=0;i<frames;i++)
+    {
+        if(i==frames-120)start=w[0x0c]|(unsigned(w[0x0d])<<8);
+        const unsigned n=i<240?title:turns;
+        w[2]=n&255;w[3]=n>>8;w[6]=i<240?0x0f:inidisp;core.retro_run();
+    }
+    const unsigned finished=((w[0x0c]|(unsigned(w[0x0d])<<8))-start)&0xffff;core.retro_unload_game();
+    current.defaults["snes9x_overclock_cycles"]="disabled";current.defaults["snes9x_auto_overclock_indicator"]="disabled";
+    return finished;
+}
+static bool white_top_left()
+{
+    for(unsigned y=0;y<16 && y<frame_height;y++)for(unsigned x=0;x<64 && x<frame_width;x++)if(pixels[y*frame_width+x]==0xffff)return true;
+    return false;
+}
 static unsigned gsu_counter(Core& core)
 {
     auto* w=static_cast<uint8_t*>(core.retro_get_memory_data(RETRO_MEMORY_SYSTEM_RAM));return w[0x20]|(unsigned(w[0x21])<<8);
@@ -353,6 +401,19 @@ int main(int argc,char**argv)
             require(normal>0 && light>=normal && compatible>light && fastest>compatible && fastest*10>=normal*18,
                 "Reduce Slowdown has no effect: "+std::to_string(normal)+"/"+std::to_string(light)+"/"+std::to_string(compatible)+"/"+std::to_string(fastest));
             std::printf("PASS Reduce Slowdown CPU work per 4 frames: disabled %u, light %u, compatible %u, max %u\n",normal,light,compatible,fastest);
+        }
+        {
+            // 1.3 frames of work: 3 of 4 frames finished without overclock, all of them once Auto reaches Compatible
+            const unsigned normal=finished_frames(core,current,"disabled",1.3,0x0f,720);
+            const unsigned automatic=finished_frames(core,current,"auto",1.3,0x0f,720);
+            const unsigned light=finished_frames(core,current,"auto",0.3,0x0f,720);
+            const unsigned blank=finished_frames(core,current,"auto",1.3,0x80,720);
+            require(normal<=95 && automatic>=118 && light>=119 && blank<=95,
+                "Auto overclock: "+std::to_string(normal)+"/"+std::to_string(automatic)+"/"+std::to_string(light)+"/"+std::to_string(blank));
+            std::printf("PASS Auto overclock frames finished of 120: disabled %u, auto %u, auto light load %u, auto with the screen off %u\n",normal,automatic,light,blank);
+            finished_frames(core,current,"auto",0.3,0x0f,300,false);require(!white_top_left(),"Indicator drawn while disabled");
+            finished_frames(core,current,"auto",0.3,0x0f,300,true);require(white_top_left(),"Auto overclock indicator not drawn");
+            std::puts("PASS Show Auto Overclock draws the level at the top-left");
         }
         require(current.defaults.count("snes9x_auto_crop") && current.defaults["snes9x_auto_crop"]=="disabled","Auto crop option missing or not disabled by default");
         autocrop_test(core,current);

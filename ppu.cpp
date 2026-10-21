@@ -14,6 +14,7 @@
 #include "controls.h"
 #include "movie.h"
 #include "display.h"
+#include "autooc.h"
 #ifdef NETPLAY_SUPPORT
 #include "netplay.h"
 #endif
@@ -246,8 +247,12 @@ void S9xSetPPU (uint8 Byte, uint16 Address)
 		S9xMSU1WritePort(Address & 7, Byte);
 	else
 	if ((Address & 0xffc0) == 0x2140) // APUIO0, APUIO1, APUIO2, APUIO3
+	{
+		if (AutoOC.enabled)
+			S9xAutoOCApuWrite();
 		// write_port will run the APU until given clock before writing value
 		S9xAPUWritePort(Address & 3, Byte);
+	}
 	else
 	if (Address <= 0x2183)
 	{

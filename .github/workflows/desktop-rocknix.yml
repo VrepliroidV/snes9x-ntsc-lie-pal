@@ -1,8 +1,10 @@
-name: Windows and ROCKNIX cores
+name: Windows, Linux and ROCKNIX cores
 on:
   push:
   pull_request:
   workflow_dispatch:
+  release:
+    types: [published]
 permissions:
   contents: read
 jobs:
@@ -24,6 +26,24 @@ jobs:
         with:
           name: snes9x-windows-x64-${{ github.sha }}
           path: build/windows-x64/
+  linux-x64:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and exercise Linux x64 Libretro core
+        run: |
+          make -C libretro -j2 platform=unix LTO=
+          mkdir -p build/linux-x64
+          cp libretro/snes9x_libretro.so LICENSE filter/snes_ntsc-license.txt build/linux-x64/
+          g++ -std=c++11 -O2 -I. tests/features_test.cpp -ldl -o build/linux-x64/features_test
+          build/linux-x64/features_test "$PWD/build/linux-x64/snes9x_libretro.so" > build/linux-x64/features-test.log
+          readelf -h -d -V build/linux-x64/snes9x_libretro.so > build/linux-x64/elf-report.txt
+          cd build/linux-x64
+          sha256sum snes9x_libretro.so > SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: snes9x-linux-x64-${{ github.sha }}
+          path: build/linux-x64/
   rocknix-arm64:
     runs-on: ubuntu-22.04
     steps:
@@ -44,3 +64,31 @@ jobs:
         with:
           name: snes9x-rocknix-arm64-${{ github.sha }}
           path: build/rocknix-arm64/
+  # Publishing a release (for example tag v1.0.0-beta.4) builds it and attaches
+  # one ZIP for each of these cores. If the release text is empty, it is filled
+  # from docs/releases/<tag>.md.
+  release:
+    needs: [windows-x64, linux-x64, rocknix-arm64]
+    if: github.event_name == 'release'
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Zip and attach
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          for platform in windows-x64 linux-x64 rocknix-arm64; do
+            rm -f "artifacts/snes9x-$platform-${{ github.sha }}/features_test"
+            (cd "artifacts/snes9x-$platform-${{ github.sha }}" && zip -r -X "$GITHUB_WORKSPACE/snes9x-ntsc-lie-pal-$platform.zip" .)
+          done
+          if [ -z "$(gh release view "$TAG" --json body --jq .body)" ] && [ -f "docs/releases/$TAG.md" ]; then
+            gh release edit "$TAG" --notes-file "docs/releases/$TAG.md"
+          fi
+          gh release upload "$TAG" snes9x-ntsc-lie-pal-windows-x64.zip snes9x-ntsc-lie-pal-linux-x64.zip snes9x-ntsc-lie-pal-rocknix-arm64.zip --clobber

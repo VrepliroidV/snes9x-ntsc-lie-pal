@@ -4,6 +4,8 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -67,3 +69,26 @@ jobs:
           name: android-arm64-failed-build-${{ github.sha }}
           path: build/android-arm64/build.log
           if-no-files-found: ignore
+
+  # Publishing a release attaches the Android core as a ZIP (see also
+  # desktop-rocknix.yml, which fills an empty release text).
+  release:
+    needs: android-arm64
+    if: github.event_name == 'release'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: snes9x-ntsc-lie-pal-android-arm64-${{ github.sha }}
+          path: android-arm64
+      - name: Zip and attach
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          rm -f android-arm64/android-core-smoke
+          (cd android-arm64 && zip -r -X "$GITHUB_WORKSPACE/snes9x-ntsc-lie-pal-android-arm64.zip" .)
+          gh release upload "$TAG" snes9x-ntsc-lie-pal-android-arm64.zip --clobber

@@ -28,6 +28,8 @@
 #include <fcntl.h>
 #include "filter/snes_ntsc.h"
 #include "autocrop.h"
+#include "osd_text.h"
+#include "autooc.h"
 
 #define RETRO_DEVICE_JOYPAD_MULTITAP ((1 << 8) | RETRO_DEVICE_JOYPAD)
 #define RETRO_DEVICE_LIGHTGUN_SUPER_SCOPE ((1 << 8) | RETRO_DEVICE_LIGHTGUN)
@@ -64,6 +66,7 @@ bool g_geometry_update = false;
 static autocrop_mode auto_crop_mode = AUTOCROP_DISABLED;
 static autocrop_state auto_crop;
 static char auto_crop_file[4096]; // per-game layout memory; empty when unknown
+static bool auto_overclock_indicator = false; // level in use drawn on the picture
 static bool in_retro_run = false;
 
 int hires_blend = 0;
@@ -446,13 +449,22 @@ static void update_variables(bool load_region = false)
         Settings.InterpolationMethod = DSP_INTERPOLATION_GAUSSIAN;
 
 
+    var.key="snes9x_overclock_cycles";
+    var.value=NULL;
+    const bool auto_overclock = environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value &&
+        strcmp(var.value, "auto") == 0;
+    if (!auto_overclock)
+        S9xAutoOCSetEnabled(FALSE); // before the fixed cycles below
+
     Settings.OneClockCycle      = 6;
     Settings.OneSlowClockCycle  = 8;
     Settings.TwoClockCycles     = 12;
 
     var.key="snes9x_overclock_cycles";
     var.value=NULL;
-    if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
+    if (auto_overclock)
+        S9xAutoOCSetEnabled(TRUE); // picks the level while the game runs
+    else if (environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value)
     {
         if (strcmp(var.value, "max") == 0)
         {
@@ -473,6 +485,11 @@ static void update_variables(bool load_region = false)
             Settings.TwoClockCycles     = 12;
         }
     }
+
+    var.key="snes9x_auto_overclock_indicator";
+    var.value=NULL;
+    auto_overclock_indicator = environ_cb(RETRO_ENVIRONMENT_GET_VARIABLE, &var) && var.value &&
+        strcmp(var.value, "enabled") == 0;
 
     Settings.MaxSpriteTilesPerLine = 34;
     var.key="snes9x_reduce_sprite_flicker";
@@ -930,6 +947,7 @@ unsigned retro_api_version()
 void retro_reset()
 {
     S9xSoftReset();
+    S9xAutoOCReset();
     autocrop_reset_tracking(&auto_crop);
     g_geometry_update = true;
 }
@@ -1266,6 +1284,7 @@ bool retro_load_game(const struct retro_game_info *game)
         log_cb(RETRO_LOG_ERROR, "ROM loading failed...\n");
 
     if (rom_loaded) msu1_update_playback_rate();
+    if (rom_loaded) S9xAutoOCLoadGame(); // the automatic overclock starts from none
 
     Memory.ClearSRAM();
 
@@ -1404,6 +1423,7 @@ bool retro_load_game_special(unsigned game_type, const struct retro_game_info *i
     }
 
     if (rom_loaded) msu1_update_playback_rate();
+    if (rom_loaded) S9xAutoOCLoadGame();
     return rom_loaded;
 }
 
@@ -1961,6 +1981,8 @@ void retro_run()
     in_retro_run = true;
     S9xMainLoop();
     in_retro_run = false;
+    if (AutoOC.enabled)
+        S9xAutoOCEndFrame();
 }
 
 void retro_deinit()
@@ -2079,6 +2101,7 @@ bool retro_unserialize(const void* data, size_t size)
     if (S9xUnfreezeGameMem((const uint8_t*)data,size) != SUCCESS)
         return false;
 
+    S9xAutoOCReset(); // the automatic overclock starts from none again
     return true;
 }
 
@@ -2121,6 +2144,25 @@ static void auto_crop_process(int width, int height, int overscan_offset)
     }
     if (auto_crop.layouts_changed && auto_crop_file[0])
         autocrop_save_layouts(&auto_crop, auto_crop_file);
+}
+
+// Draws the automatic overclock in use and how busy the CPU was, at the
+// top-left of the part of the frame shown (after it was measured for the crop).
+static void draw_auto_overclock(int width, int height, int overscan_offset, int vscale)
+{
+    static const char *levels[AUTOOC_LEVELS] = { "OFF", "LIGHT", "COMPAT", "MAX" };
+    char text[32];
+    snprintf(text, sizeof(text), "OC %s %d%%", levels[AutoOC.level], (int) ((AutoOC.busy + 5) / 10));
+
+    const int hscale = width > SNES_WIDTH ? width / SNES_WIDTH : 1;
+    int left = 0, top = 0;
+    if (auto_crop_mode != AUTOCROP_DISABLED)
+    {
+        left = auto_crop.applied[AUTOCROP_LEFT] * hscale;
+        top = auto_crop.applied[AUTOCROP_TOP] * vscale;
+    }
+    osd_draw_text(GFX.Screen + (int)(GFX.Pitch >> 1) * overscan_offset, GFX.Pitch >> 1, width, height,
+        left + 4 * hscale, top + 4 * vscale, hscale, vscale, text);
 }
 
 // Applies the current crop to an output frame of out_width x out_height.
@@ -2190,6 +2232,8 @@ bool8 S9xDeinitUpdate(int width, int height)
     int crop_left, crop_top, crop_width, crop_height;
     if (auto_crop_mode != AUTOCROP_DISABLED)
         auto_crop_process(width, height, overscan_offset);
+    if (auto_overclock_indicator && AutoOC.enabled)
+        draw_auto_overclock(width, height, overscan_offset, crop_vscale);
 
     if (blargg_filter && width == MAX_SNES_WIDTH_4X)
     {
