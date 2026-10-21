@@ -6,6 +6,8 @@ PAL ao jogo. A **Beta 2** acrescentou Mode 7 Hi-Res, MSU-1 Enhanced Audio e
 SuperFX Timing, com núcleos para **Android ARM64**, **Windows x64** e
 **Linux ARM64 (ROCKNIX)**. A **Beta 3** traz o **Auto Crop Black Borders**, que
 remove as bordas pretas tela por tela, e corrige o Reduce Slowdown no Android.
+A **Beta 4** traz o **Reduce Slowdown: Auto**, que só faz overclock enquanto o
+jogo fica lento e o desliga nas transições, e um núcleo para **Linux x64**.
 
 A idéia inicialmente era rodar **Donkey Kong Country 2 (Europe)** em NTSC, mas por conter muitos códigos anticopia em sua programação o jogo não se permitia avançar, e em alguns casos o emulador podia travar.
 Agora com o modo NTSC lie to PAL, o jogo acredita que está rodando em PAL mas na verdade está com os Timmings do modo NTSC.
@@ -28,17 +30,19 @@ Os builds adicionais são núcleos Libretro para **Windows x64** e **Linux ARM64
 As versões públicas e seus arquivos ficam em
 [Releases do projeto](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases).
 A versão atual é a
-**[v1.0.0-beta.3 — Beta 3](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.3)**,
+**[v1.0.0-beta.4 — Beta 4](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.4)**,
 com um ZIP por plataforma:
 
-| Plataforma | Núcleo no ZIP | Acompanha |
-| --- | --- | --- |
-| Android ARM64 | `snes9x_libretro_android.so` | Licenças, `SHA256SUMS`, metadados do build e validação ELF |
-| Windows x64 | `snes9x_libretro.dll` | Licenças, `SHA256SUMS` e relatório PE |
-| Linux ARM64 / ROCKNIX | `snes9x_libretro.so` | Licenças, `SHA256SUMS`, relatório ELF e log dos testes de recursos |
+| Plataforma | ZIP | Núcleo no ZIP | Acompanha |
+| --- | --- | --- | --- |
+| Android ARM64 | `snes9x-ntsc-lie-pal-android-arm64.zip` | `snes9x_libretro_android.so` | Licenças, `SHA256SUMS`, metadados do build e validação ELF |
+| Windows x64 | `snes9x-ntsc-lie-pal-windows-x64.zip` | `snes9x_libretro.dll` | Licenças, `SHA256SUMS` e relatório PE |
+| Linux x64 | `snes9x-ntsc-lie-pal-linux-x64.zip` | `snes9x_libretro.so` | Licenças, `SHA256SUMS`, relatório ELF e log dos testes de recursos |
+| Linux ARM64 / ROCKNIX | `snes9x-ntsc-lie-pal-rocknix-arm64.zip` | `snes9x_libretro.so` | Licenças, `SHA256SUMS`, relatório ELF e log dos testes de recursos |
 
 Use apenas o núcleo da sua plataforma. As versões anteriores continuam
-disponíveis: a [Beta 2](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.2),
+disponíveis: a [Beta 3](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.3),
+sem o Reduce Slowdown Auto, a [Beta 2](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.2),
 sem Auto Crop, e a [Beta 1](https://github.com/VrepliroidV/snes9x-ntsc-lie-pal/releases/tag/v1.0.0-beta.1),
 só para Android e só com a opção NTSC (Lie to PAL).
 
@@ -108,6 +112,7 @@ aparelho usado no teste relatado.
 | --- | --- |
 | Android ARM64 / `arm64-v8a` | Núcleo da Beta 2 com validação ELF aprovada. NTSC (Lie to PAL) testado no aparelho na Beta 1; recursos novos ainda sem teste em jogos reais |
 | Windows x64 | Núcleo Libretro (`.dll`) da Beta 2 com inspeção PE aprovada; sem teste em jogos reais |
+| Linux x64 | Núcleo Libretro (`.so`) desde a Beta 4, com os testes de recursos; sem teste em jogos reais |
 | Linux ARM64 / ROCKNIX | Núcleo Libretro (`.so`) da Beta 2 com testes de recursos por QEMU; sem teste no RG DS |
 
 O binário Android é compilado para **API 21 ou superior** (Android 5.0+), com
@@ -120,9 +125,9 @@ apenas de `KERNEL32.dll` e `msvcrt.dll`. O núcleo Linux ARM64 requer
 **glibc 2.29 ou posterior** e `libstdc++.so.6` com `GLIBCXX_3.4.29`. O QEMU não
 reproduz o ambiente completo do ROCKNIX nem mede desempenho no portátil.
 
-Os três são núcleos Libretro para usar no RetroArch, não emuladores standalone.
-O build Linux x86_64 dos testes automatizados serve apenas para verificar a
-emulação e não é distribuído.
+São núcleos Libretro para usar no RetroArch, não emuladores standalone. O
+núcleo Linux x64 é compilado no Ubuntu 22.04 e roda os mesmos testes de recursos;
+ele depende da glibc e da `libstdc++` do sistema de destino.
 
 ## Instalação no RetroArch Android
 
@@ -132,8 +137,8 @@ emulação e não é distribuído.
 2. Faça backup do núcleo Snes9x existente em **Configurações > Núcleo > Gerenciar
    núcleos > Snes9x > Fazer cópia de segurança**. O arquivo fornecido usa o nome
    `snes9x_libretro_android.so` e **substitui o Snes9x instalado**.
-3. Baixe o `.so` ou extraia o ZIP da versão (pasta `Android_ARM64`) e copie o
-   arquivo para uma pasta acessível pelo RetroArch. Desbloqueie o núcleo
+3. Extraia o `snes9x-ntsc-lie-pal-android-arm64.zip` e copie o `.so` para uma
+   pasta acessível pelo RetroArch. Desbloqueie o núcleo
    existente antes da instalação, caso esteja bloqueado.
 4. Abra **Menu principal > Carregar núcleo > Instalar ou restaurar núcleo**,
    selecione `snes9x_libretro_android.so` e aguarde a conclusão. O aplicativo
@@ -146,17 +151,21 @@ emulação e não é distribuído.
 
 Os nomes dos menus podem variar conforme a versão e o idioma do RetroArch.
 
-## Instalação no Windows e no ROCKNIX
+## Instalação no Windows, no Linux e no ROCKNIX
 
 Feche o RetroArch antes de substituir um núcleo e faça backup do Snes9x
 existente, porque o arquivo deste projeto usa o mesmo nome.
 
-- **Windows x64:** copie `snes9x_libretro.dll` (pasta `Windows_x64` do ZIP) para
-  o diretório de núcleos do RetroArch, normalmente a pasta `cores`, e carregue o
-  núcleo Snes9x.
-- **ROCKNIX (Linux ARM64):** copie `snes9x_libretro.so` (pasta `ROCKNIX_ARM64`
-  do ZIP) para o diretório de núcleos configurado no RetroArch. O caminho e a
-  permissão de escrita dependem da instalação do sistema.
+- **Windows x64:** copie `snes9x_libretro.dll` (do
+  `snes9x-ntsc-lie-pal-windows-x64.zip`) para o diretório de núcleos do
+  RetroArch, normalmente a pasta `cores`, e carregue o núcleo Snes9x.
+- **Linux x64:** copie `snes9x_libretro.so` (do
+  `snes9x-ntsc-lie-pal-linux-x64.zip`) para o diretório de núcleos do RetroArch,
+  por exemplo `~/.config/retroarch/cores`.
+- **ROCKNIX (Linux ARM64):** copie `snes9x_libretro.so` (do
+  `snes9x-ntsc-lie-pal-rocknix-arm64.zip`) para o diretório de núcleos
+  configurado no RetroArch. O caminho e a permissão de escrita dependem da
+  instalação do sistema.
 
 Depois de copiar, carregue o núcleo e o jogo novamente.
 
@@ -170,6 +179,8 @@ Depois de copiar, carregue o núcleo e o jogo novamente.
 | Video | Auto Crop Black Borders | disabled (padrão), Fit (keep proportions), Stretch (fill frame) |
 | Audio | MSU-1 Enhanced Audio | enabled (padrão), disabled; recarregue o conteúdo após mudar |
 | Emulation | SuperFX Timing | Cycle Accurate (padrão), Legacy |
+| Emulation | Reduce Slowdown | disabled (padrão), Light, Compatible, Max, **Auto** |
+| Emulation | Show Auto Overclock | disabled (padrão), enabled |
 
 A localização e os nomes das categorias podem depender do frontend. O MSU-1
 Enhanced Audio não cria trilhas: o jogo precisa do patch e dos arquivos MSU-1
@@ -230,6 +241,20 @@ modo de região. Estados devem ser criados e restaurados no mesmo modo: estados
 PAL podem conter temporizações incompatíveis com uma sessão NTSC.
 
 ## Resultados de validação
+
+### Beta 4
+
+Uma ROM original gerada faz, a cada quadro, um laço de trabalho e espera o NMI.
+Com 1,3 quadro de trabalho, de 120 quadros ela termina 90 com Reduce Slowdown
+desligado e 120 com Auto; com pouco trabalho termina 120 e, com a tela
+desligada, fica em 90, sem overclock. O teste confere também que o Show Auto
+Overclock desenha o texto só quando está ligado. Roda no Linux x64 e no Linux
+ARM64 (por QEMU), junto dos testes anteriores.
+
+O mesmo overclock automático foi testado pelo responsável pelo projeto no
+Snes9x TX (Wii), nos três Top Gear, que travavam em Max na troca da corrida para
+os resultados, e no Primal Rage, que travava no meio da partida em Max e nem
+abria em Compatible.
 
 ### Beta 3
 
